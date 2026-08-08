@@ -29,3 +29,115 @@
     }
   })();
 </script>
+<script>
+  (function() {
+    // HTMLエスケープ関数（XSS対策）
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;"); // シングルクォーテーションのエスケープを修正
+    }
+
+    // CSVまたはTSVの1行を正しく分割する関数（カンマやタブのパース）
+    function splitLine(line, delimiter) {
+      if (delimiter === '\t') {
+        return line.split('\t');
+      }
+
+      // CSV用の簡易パース（ダブルクォーテーション囲みに対応）
+      var result = [];
+      var current = '';
+      var inQuotes = false;
+
+      for (var i = 0; i < line.length; i++) {
+        var char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim().replace(/^"|"$/g, '')); // 前後のクォーテーションを削除
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim().replace(/^"|"$/g, ''));
+      return result;
+    }
+
+    // テキストデータをHTMLテーブルに変換する関数
+    function dataToTable(content, type) {
+      var lines = content.trim().split(/\r?\n/);
+      if (lines.length === 0 || lines[0] === '') return '';
+
+      // タイプに応じて区切り文字を決定（tsvならタブ、それ以外はカンマ）
+      var delimiter = (type === 'tsv') ? '\t' : ',';
+
+      let html = '<div class="excel-table-wrapper"><table class="excel-styled-table">';
+
+      // 1. ヘッダー行の処理
+      var headers = splitLine(lines[0], delimiter);
+      html += '<thead><tr>';
+      headers.forEach(function(cell) {
+        html += '<th>' + escapeHtml(cell) + '</th>';
+      });
+      html += '</tr></thead>';
+
+      // 2. データ行の処理
+      html += '<tbody>';
+      for (var i = 1; i < lines.length; i++) {
+        // コピペ時の末尾の空行などをスキップして表示崩れを防ぐ
+        if (!lines[i].trim()) continue;
+
+        var cells = splitLine(lines[i], delimiter);
+        html += '<tr>';
+        cells.forEach(function(cell) {
+          html += '<td>' + escapeHtml(cell) + '</td>';
+        });
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+
+      return html;
+    }
+
+    function renderStructuredData() {
+      // tsv と csv 両方のコードブロックを取得
+      var blocks = document.querySelectorAll('pre code.language-tsv, pre code.language-txt, pre code.language-csv');
+      if (blocks.length === 0) return;
+
+      blocks.forEach(function(block) {
+        var pre = block.closest('pre');
+        if (pre) {
+          // クラス名から tsv か csv かを判定
+          var type = 'csv';
+          if (block.className.indexOf('language-tsv') !== -1 || block.className.indexOf('language-txt') !== -1) {
+            type = 'tsv';
+          }
+
+          var src = block.textContent;
+          var tableHtml = dataToTable(src, type);
+
+          if (tableHtml) {
+            var wrapper = document.createElement('div');
+            wrapper.innerHTML = tableHtml;
+            // <pre>要素を生成したテーブルに置き換える
+            pre.parentNode.replaceChild(wrapper.firstChild, pre);
+          }
+        }
+      });
+    }
+
+    function boot() {
+      setTimeout(renderStructuredData, 0);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', boot);
+    } else {
+      boot();
+    }
+  })();
+</script>
