@@ -7,10 +7,13 @@ GitHub Pages + Jekyll で作ったブログです。
 技術メモや日々の記録を書いていきます。
 
 ## 最新の記事
-<ul>
+<ul class="post-list">
   {% for post in site.posts %}
-    <li>
-      <a href="{{ post.url }}">{{ post.title }}</a> — {{ post.date | date: "%Y-%m-%d" }}
+    <li class="post-item">
+      <a class="post-title" href="{{ post.url }}">{{ post.title }}</a> — {{ post.date | date: "%Y-%m-%d" }}
+      {% if post.excerpt %}
+        <p class="post-excerpt">{{ post.excerpt }}</p>
+      {% endif %}
     </li>
   {% endfor %}
 </ul>
