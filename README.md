@@ -1,2 +1,2 @@
-# @yukiosak1~長文~
+# @yukiosak1-長文-
 
