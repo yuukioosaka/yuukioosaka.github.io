@@ -17,9 +17,7 @@ flowchart TB
     PRED --> WBS["WBS/ガントチャート/EVM等の技法"]
     AGILE --> SCRUM["スクラム"]
     AGILE --> CRYSTAL["クリスタル"]
-    AGILE --> KANBAN["カンバン"]
-    AGILE --> XP["XP(エクストリーム・プログラミング)"]
-    AGILE --> SAFE["SAFe等スケール手法"]
+    AGILE --> KANBAN["カンバン ..."]
 
     style PMBOK fill:#fff4e6
     style PRED fill:#e8f4f8
