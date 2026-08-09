@@ -2,7 +2,6 @@
 layout: default
 title: ホーム
 ---
-# @yukiosak1-長文-
 GitHub Pages + Jekyll で作ったブログです。
 技術メモや日々の記録を書いていきます。
 

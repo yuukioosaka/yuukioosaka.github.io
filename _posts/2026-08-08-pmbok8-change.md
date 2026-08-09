@@ -4,7 +4,7 @@ title: PMBOK 7→8 変更内容まとめ
 date: 2026-08-08 00:00:00 +0900
 excerpt: PMBOK第8版(2025年リリース)への変更点の整理。第7版の12の原則・8つのパフォーマンス領域をベースに、AIや新規領域への拡張が行われた。
 ---
-
+# PMBOK 7→8 変更内容まとめ
 - 2025年11月にPMIが発表したPMBOK第8版は、第7版(2021年)の原則ベースアプローチを踏襲しつつ、実務家からの「抽象的すぎる」という批判を受けてプロセスの具体性を復活させた、いわば第6版と第7版のハイブリッド型改訂である。
 
 - 構造面での最大の変化は3点。第一に、12あった原則が6原則(Holistic View、Focus on Value、Embed Quality、Accountable Leader、Integrate Sustainability、Empowered Culture)に統合され、AI時代を見据えサステナビリティが新規原則として加わった一方、TailoringとRiskは独立原則から姿を消し、それぞれ独立章とパフォーマンスドメインへ格下げされた。第二に、8つあったパフォーマンスドメイン(Stakeholders、Team、Development Approach and Life Cycle等)が7つ(Governance、Scope、Schedule、Finance、Stakeholders、Resources、Risk)に再編され、旧来のナレッジエリアに近い機能軸に回帰した。第三に、第7版で本体から完全排除され別冊「Process Groups: A Practice Guide」に追いやられていた49プロセスが、40の非規範的プロセスとして本体に復活し、7ドメイン×5フォーカスエリア(旧プロセスグループの改称)の格子構造に組み込まれた。
