@@ -6,7 +6,7 @@ GitHub Pages + Jekyll で作ったブログです。
 技術メモや日々の記録を書いていきます。
 
 ## 最新の記事
-<ul class="post-list list-style-none">
+<ul class="post-list list-style-none pl-0">
   {% for post in site.posts %}
     <a class="post-card border box-shadow-medium rounded-2 p-3 mb-3 no-underline" href="{{ post.url }}">
       <div class="d-flex flex-justify-between flex-items-baseline">
