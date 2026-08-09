@@ -90,21 +90,12 @@ flowchart TB
     end
 
     subgraph AGILEMETHODS["各アジャイル手法(独立発展)"]
-        SCRUM2["スクラム<br/>役割・イベント・成果物"]
-        CRYSTAL2["クリスタル<br/>チーム規模別の軽量プロセス"]
-        KANBAN2["カンバン<br/>WIP制限・可視化・流れの最適化"]
-        XP2["XP<br/>ペアプロ・TDD等の技術プラクティス"]
+        SCRUM2["スクラム/クリスタル/カンバン/XP<br/>役割・イベント・成果物"]
     end
 
     PRIN -.共通の価値観として反映.-> SCRUM2
-    PRIN -.共通の価値観として反映.-> CRYSTAL2
-    PRIN -.共通の価値観として反映.-> KANBAN2
-    PRIN -.共通の価値観として反映.-> XP2
 
     SCRUM2 -.実務知識としてPMI-ACPが体系化.-> ACP["PMI-ACP<br/>(具体的アジャイル実践知識)"]
-    CRYSTAL2 -.-> ACP
-    KANBAN2 -.-> ACP
-    XP2 -.-> ACP
 
     DOM -.部分的に対応可能.-> SCRUM2
 
