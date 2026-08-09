@@ -9,7 +9,8 @@ GitHub Pages + Jekyll で作ったブログです。
 <ul class="post-list">
   {% for post in site.posts %}
     <li class="post-item">
-      <a class="post-title" href="{{ post.url }}">{{ post.title }}</a> — {{ post.date | date: "%Y-%m-%d" }}
+      <a class="post-title" href="{{ post.url }}">{{ post.title }}</a>
+      <span class="post-date">{{ post.date | date: "%Y-%m-%d" }}</span>
       {% if post.excerpt %}
         <p class="post-excerpt">{{ post.excerpt }}</p>
       {% endif %}

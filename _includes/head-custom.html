@@ -1,4 +1,66 @@
 <style>
+  /* ---- 記事一覧のスタイル ---- */
+  ul.post-list {
+    list-style: none;
+    padding: 0;
+    margin: 1.5rem 0;
+  }
+
+  .post-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem 0.9rem;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.7rem;
+    background: var(--bg-color, #fff);
+    border: 1px solid var(--border-color, #e1e4e8);
+    border-radius: 10px;
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  }
+
+  .post-item:hover {
+    border-color: var(--accent-color, #0969da);
+    box-shadow: 0 4px 14px rgba(9, 105, 218, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .post-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent-color, #0969da);
+    text-decoration: none;
+  }
+
+  .post-title:hover {
+    text-decoration: underline;
+  }
+
+  .post-date {
+    font-size: 0.85rem;
+    color: var(--text-muted, #57606a);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .post-excerpt {
+    flex-basis: 100%;
+    margin: 0.4rem 0 0;
+    font-size: 0.95rem;
+    color: var(--text-muted, #57606a);
+    line-height: 1.6;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .post-item {
+      border-color: #30363d;
+    }
+    .post-item:hover {
+      border-color: #2f81f7;
+      box-shadow: 0 4px 14px rgba(47, 129, 247, 0.2);
+    }
+  }
+
   .excel-styled-table {
     width: 100%;
     table-layout: fixed;
