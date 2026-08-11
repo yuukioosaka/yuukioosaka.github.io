@@ -42,10 +42,11 @@ jobs:
           npm install -g openclaw@latest
           echo "OpenClaw installed successfully."
 
-      # 4. DeepSeek (OpenAI互換) プロバイダーを登録した設定を生成
+      # 4. DeepSeek (OpenAI互換) プロバイダーと Web検索を登録した設定を生成
       #    apiKey は SecretRef（env）指定で、実行時環境変数 DEEPSEEK_API_KEY から
       #    解決されるため、設定ファイルやログに実キーが露出しません。
-      - name: Configure DeepSeek provider
+      #    web.search を有効化し、ヘッドレスな検索ツールでニュースを収集します。
+      - name: Configure OpenClaw
         run: |
           mkdir -p ~/.openclaw
           cat << 'EOF' > ~/.openclaw/openclaw.json
@@ -64,10 +65,17 @@ jobs:
                   "api": "openai-completions"
                 }
               }
+            },
+            "tools": {
+              "web": {
+                "search": {
+                  "enabled": true
+                }
+              }
             }
           }
           EOF
-          echo "DeepSeek プロバイダー設定を作成しました。"
+          echo "OpenClaw 設定を作成しました。"
 
       # 5. 当日日付を取得し、prompt.mdの「yyyy-MM-dd」を当日日付へ置換
       - name: Prepare prompt with today's date
