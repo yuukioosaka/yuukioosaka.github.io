@@ -1,48 +1,65 @@
 name: Auto News Digest Generator
 
 on:
-  # 毎日 JST 7:00（UTC 22:00）に自動実行
+  # GitHub Actions では cron が複数ある場合、いずれかにマッチするとワークフローが
+  # 起動し、全ジョブが実行される。ジョブ単位のスケジュール指定はできないため、
+  # 各ジョブは冒頭の「実行日判定」で対象日以外をスキップして制御する。
   schedule:
-    - cron: '0 22 * * *'
+    # 日次：JST 火〜土 7:00 = UTC 月〜金 22:00
+    - cron: '0 22 * * 1-5'
+    # 週次：JST 土曜 7:00 = UTC 金曜 22:00（上記日に重複するが、曜日判定で制御）
+    - cron: '0 22 * * 5'
+    # 月次：毎月1日 JST 0:00 = UTC 前月末 15:00。毎日実行しジョブ内で判定。
+    - cron: '0 15 * * *'
   # 手動実行のトリガー
   workflow_dispatch:
 
+env:
+  DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+
 jobs:
-  build-blog:
+  # ============ 日次ブログ ============
+  daily:
+    name: Daily News Digest
     runs-on: ubuntu-latest
-
-    # Environment secrets（キー名: DEEPSEEK_API_KEY）を参照するための環境宣言
     environment: key
-
-    # リポジトリへの書き込み（git push）に必要な最小権限を明示
-    # （デフォルトの Read では push が失敗します）
     permissions:
       contents: write
-
     steps:
-      # 1. コードのチェックアウト
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. Node.js 22のセットアップ（OpenClawはNode 22以上を推奨。
-      #    ubuntu-latest のデフォルトNodeに依存せず明示的に固定）
+      - name: Prepare today's date (JST)
+        run: |
+          TODAY=$(TZ=Asia/Tokyo date +%F)
+          echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
+          echo "TODAY=${TODAY}"
+
+      # 日次は JST 火〜土のみ。判定は JST の曜日（月=1...日=7 → 火..土 = 2..6）。
+      - name: Guard for Tue-Sat (JST)
+        run: |
+          DOW=$(TZ=Asia/Tokyo date +%u)
+          if [ "$DOW" -ge 2 ] && [ "$DOW" -le 6 ]; then
+            echo "skip=false" >> "$GITHUB_ENV"
+          else
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
       - name: Setup Node.js
+        if: ${{ env.skip != 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      # 3. OpenClawのグローバルインストール
       - name: Install OpenClaw
+        if: ${{ env.skip != 'true' }}
         run: |
           npm install -g openclaw@latest
           echo "OpenClaw installed successfully."
           openclaw plugins install duckduckgo
 
-      # 4. DeepSeek (OpenAI互換) プロバイダーと Web検索を登録した設定を生成
-      #    apiKey は SecretRef（env）指定で、実行時環境変数 DEEPSEEK_API_KEY から
-      #    解決されるため、設定ファイルやログに実キーが露出しません。
-      #    web.search を有効化し、ヘッドレスな検索ツールでニュースを収集します。
       - name: Configure OpenClaw
+        if: ${{ env.skip != 'true' }}
         run: |
           mkdir -p ~/.openclaw
           cat << 'EOF' > ~/.openclaw/openclaw.json
@@ -74,51 +91,35 @@ jobs:
           EOF
           echo "OpenClaw 設定を作成しました。"
 
-      # 5a. 現在時刻をJSTで取得し、当日日付を設定
-      - name: Prepare today's date
-        run: |
-          TODAY=$(date +%F)
-          echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
-          echo "TODAY=${TODAY}"
-
-      # 5b. Python のセットアップと、指標取得に必要な依存ライブラリのインストール
       - name: Setup Python & dependencies
+        if: ${{ env.skip != 'true' }}
         run: |
           python -m pip install --upgrade pip
-          pip install yfinance pandas pandas beautifulsoup4 curl_cffi requests
-          python --version
-          pip show yfinance | head -n 2
+          pip install yfinance pandas beautifulsoup4 curl_cffi requests
 
-      # 5c. fetch_indicators.py を実行し、当日の全指標を market_summary.md として生成
       - name: Run indicator fetcher
+        if: ${{ env.skip != 'true' }}
         run: |
           python fetch_indicators.py
           echo "--- generated market_summary.md ---"
           cat market_summary.md
 
-      # 5d. prompt.md の「yyyy-MM-dd」を当日日付へ置換し、取得した指標データ(全文)を付与してプロンプトを作成
       - name: Prepare prompt with today's date & fetched indicators
+        if: ${{ env.skip != 'true' }}
         run: |
           mkdir -p _posts
-          # prompt.md内の「yyyy-MM-dd」を当日日付に置換
           sed "s/yyyy-MM-dd/${TODAY}/g" prompt.md > generated-prompt.md
-          # 取得した指標データ全文をプロンプト末尾に追記
           printf '\n\n【参照用：当日に自動取得した市場指標データ（必ずこの数値を使用すること）】\n' >> generated-prompt.md
           cat market_summary.md >> generated-prompt.md
           echo "generated-prompt.md を作成しました（指標データ内包）。"
 
-      # 6. OpenClawエージェントによるブログ生成。エージェントが
-      #    ./_posts/yyyy-MM-dd-news.md に記事ファイルを直接作成します。
       - name: Run OpenClaw Agent
+        if: ${{ env.skip != 'true' }}
         env:
           TODAY: ${{ env.TODAY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          # 置換済みプロンプト
           cp generated-prompt.md run-prompt.md
-
-          # エージェント実行。エージェントが _posts/${TODAY}-news.md を直接作成する。
-          # 標準出力はログへ。失敗時はエラーメッセージを出して明示的に異常終了させる。
           openclaw agent --local --session-key "news-${TODAY}" \
             --message-file run-prompt.md \
             --model deepseek/deepseek-v4-flash \
@@ -130,17 +131,217 @@ jobs:
             }
           rm -f agent-error.log
 
-      # 7. 生成された記事（エージェントがコミット済みの場合も含む）をGitHubにプッシュ。
-      #    agent側で既にコミット済みの場合は「nothing to commit」で失敗するため、
-      #    commit失敗は無視して push を確実に実行する。
       - name: Commit and Push Generated Blog
+        if: ${{ env.skip != 'true' }}
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
-
           FILE="_posts/${TODAY}-news.md"
           git add "$FILE"
-          # 未コミット変更があればコミット。agentが既にコミット済みならコミット不要。
           git commit -m "docs: auto-generate news digest (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed by agent)."
-          # コミットした有無に関わらず push してワーキングツリーとリモートを同期
+          git push
+
+  # ============ 週次ブログ（毎週土曜 JST = UTC 金曜 22:00） ============
+  weekly:
+    name: Weekly Market Review
+    runs-on: ubuntu-latest
+    environment: key
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Prepare today's date (JST)
+        run: |
+          TODAY=$(TZ=Asia/Tokyo date +%F)
+          echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
+          echo "TODAY=${TODAY}"
+
+      # 週次は JST 土曜（曜日=6）のみ。それ以外はスキップ。
+      - name: Guard for Saturday (JST)
+        run: |
+          DOW=$(TZ=Asia/Tokyo date +%u)
+          if [ "$DOW" -eq 6 ]; then
+            echo "skip=false" >> "$GITHUB_ENV"
+          else
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup Node.js
+        if: ${{ env.skip != 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install OpenClaw
+        if: ${{ env.skip != 'true' }}
+        run: |
+          npm install -g openclaw@latest
+          echo "OpenClaw installed successfully."
+          openclaw plugins install duckduckgo
+
+      - name: Configure OpenClaw
+        if: ${{ env.skip != 'true' }}
+        run: |
+          mkdir -p ~/.openclaw
+          cat << 'EOF' > ~/.openclaw/openclaw.json
+          {
+            "models": {
+              "mode": "merge",
+              "providers": {
+                "deepseek": {
+                  "baseUrl": "https://api.deepseek.com",
+                  "apiKey": {
+                    "source": "env",
+                    "provider": "default",
+                    "id": "DEEPSEEK_API_KEY"
+                  },
+                  "auth": "api-key",
+                  "api": "openai-completions"
+                }
+              }
+            },
+            "tools": {
+              "web": {
+                "search": {
+                  "enabled": true,
+                  "provider": "duckduckgo"
+                }
+              }
+            }
+          }
+          EOF
+          echo "OpenClaw 設定を作成しました。"
+
+      - name: Run OpenClaw Agent
+        if: ${{ env.skip != 'true' }}
+        env:
+          TODAY: ${{ env.TODAY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          mkdir -p _posts
+          sed "s/yyyy-MM-dd/${TODAY}/g" prompt-weekly.md > generated-prompt.md
+          openclaw agent --local --session-key "weekly-${TODAY}" \
+            --message-file generated-prompt.md \
+            --model deepseek/deepseek-v4-flash \
+            --timeout 900 2>agent-error.log || {
+              echo "Error: OpenClaw weekly agent 実行に失敗しました。" >&2
+              cat agent-error.log >&2
+              rm -f generated-prompt.md agent-error.log
+              exit 1
+            }
+          rm -f agent-error.log
+
+      - name: Commit and Push Weekly Review
+        if: ${{ env.skip != 'true' }}
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          FILE="_posts/${TODAY}-weekly-review.md"
+          git add "$FILE"
+          git commit -m "docs: auto-generate weekly review (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed by agent)."
+          git push
+
+  # ============ 月次ブログ（毎月1日 JST） ============
+  monthly:
+    name: Monthly Market Review
+    runs-on: ubuntu-latest
+    environment: key
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Prepare today's date (JST)
+        run: |
+          TODAY=$(TZ=Asia/Tokyo date +%F)
+          echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
+          echo "TODAY=${TODAY}"
+
+      # 月次は毎月1日（JST）のみ。判定は「JST日付の日 = 01」。
+      # それ以外の日はセットアップごとスキップしてリソースを無駄にしない。
+      - name: Guard for 1st of month (JST)
+        run: |
+          DAY=$(TZ=Asia/Tokyo date +%d)
+          if [ "$DAY" = "01" ]; then
+            echo "skip=false" >> "$GITHUB_ENV"
+          else
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup Node.js
+        if: ${{ env.skip != 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install OpenClaw
+        if: ${{ env.skip != 'true' }}
+        run: |
+          npm install -g openclaw@latest
+          echo "OpenClaw installed successfully."
+          openclaw plugins install duckduckgo
+
+      - name: Configure OpenClaw
+        if: ${{ env.skip != 'true' }}
+        run: |
+          mkdir -p ~/.openclaw
+          cat << 'EOF' > ~/.openclaw/openclaw.json
+          {
+            "models": {
+              "mode": "merge",
+              "providers": {
+                "deepseek": {
+                  "baseUrl": "https://api.deepseek.com",
+                  "apiKey": {
+                    "source": "env",
+                    "provider": "default",
+                    "id": "DEEPSEEK_API_KEY"
+                  },
+                  "auth": "api-key",
+                  "api": "openai-completions"
+                }
+              }
+            },
+            "tools": {
+              "web": {
+                "search": {
+                  "enabled": true,
+                  "provider": "duckduckgo"
+                }
+              }
+            }
+          }
+          EOF
+          echo "OpenClaw 設定を作成しました。"
+
+      - name: Run OpenClaw Agent
+        if: ${{ env.skip != 'true' }}
+        env:
+          TODAY: ${{ env.TODAY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          mkdir -p _posts
+          sed "s/yyyy-MM-dd/${TODAY}/g" prompt-monthly.md > generated-prompt.md
+          openclaw agent --local --session-key "monthly-${TODAY}" \
+            --message-file generated-prompt.md \
+            --model deepseek/deepseek-v4-flash \
+            --timeout 1200 2>agent-error.log || {
+              echo "Error: OpenClaw monthly agent 実行に失敗しました。" >&2
+              cat agent-error.log >&2
+              rm -f generated-prompt.md agent-error.log
+              exit 1
+            }
+          rm -f agent-error.log
+
+      - name: Commit and Push Monthly Review
+        if: ${{ env.skip != 'true' }}
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          FILE="_posts/${TODAY}-monthly-review.md"
+          git add "$FILE"
+          git commit -m "docs: auto-generate monthly review (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed by agent)."
           git push
