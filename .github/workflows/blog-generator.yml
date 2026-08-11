@@ -4,13 +4,8 @@ on:
   # 毎日 JST 7:00（UTC 22:00）に自動実行
   schedule:
     - cron: '0 22 * * *'
-  # 手動実行のトリガー（任意でテーマ・特記を追加可能）
+  # 手動実行のトリガー
   workflow_dispatch:
-    inputs:
-      note:
-        description: '記事作成への追加指示（任意）'
-        required: false
-        default: ''
 
 jobs:
   build-blog:
@@ -117,15 +112,10 @@ jobs:
       - name: Run OpenClaw Agent
         env:
           TODAY: ${{ env.TODAY }}
-          EXTRA_NOTE: ${{ github.event.inputs.note || '' }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          # prompt.mdから置換済みのプロンプトを読み込み、追加指示があれば付与
+          # 置換済みプロンプト
           cp generated-prompt.md run-prompt.md
-          if [ -n "$EXTRA_NOTE" ]; then
-            printf '以下の追加指示にも従ってください。\n%s\n\n' "$EXTRA_NOTE" > run-prompt.md
-            cat generated-prompt.md >> run-prompt.md
-          fi
 
           # エージェント実行。エージェントが _posts/${TODAY}-news.md を直接作成する。
           # 標準出力はログへ。失敗時はエラーメッセージを出して明示的に異常終了させる。
@@ -140,7 +130,9 @@ jobs:
             }
           rm -f agent-error.log
 
-      # 7. 生成された記事をGitHubに自動コミット & プッシュ
+      # 7. 生成された記事（エージェントがコミット済みの場合も含む）をGitHubにプッシュ。
+      #    agent側で既にコミット済みの場合は「nothing to commit」で失敗するため、
+      #    commit失敗は無視して push を確実に実行する。
       - name: Commit and Push Generated Blog
         run: |
           git config --local user.email "action@github.com"
@@ -148,5 +140,7 @@ jobs:
 
           FILE="_posts/${TODAY}-news.md"
           git add "$FILE"
-          git commit -m "docs: auto-generate news digest (${TODAY}) by OpenClaw"
+          # 未コミット変更があればコミット。agentが既にコミット済みならコミット不要。
+          git commit -m "docs: auto-generate news digest (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed by agent)."
+          # コミットした有無に関わらず push してワーキングツリーとリモートを同期
           git push
