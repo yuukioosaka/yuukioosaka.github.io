@@ -133,7 +133,7 @@ jobs:
           以下の手順に従ってください：
           1. 上記の指示に基づき、組み込みの検索ツールで当日のニュース・市場データをリサーチしてください。
           2. 記事冒頭にはJekyllのフロントマター（layout: post / title / date: ${TODAY} 00:00:00 +0900 / excerpt）を付与してください。
-          3. 完成したMarkdown記事の全文を、コードフェンス（バッククォート3連）で囲まず、説明文や注記を一切付けず、Markdown本文のみを最終メッセージとしてそのまま返してください。冒頭を必ず「---」行で開始してください。
+          3. 完成したMarkdown記事の全文を、コードフェンス（バッククォート3連）で囲まず、説明文や注記を一切付けず、Markdown本文のみを最終メッセージとしてそのまま返してください。冒頭は必ずフロントマターで開始してください。
           PROMPTEOF
 
           # エージェント実行。プレーン出力（stdout）を捕捉
@@ -155,9 +155,16 @@ jobs:
             inblock { print }
           ' agent-result.out > "_posts/${TODAY}-news.md"
 
-          # コードブロックが無くプレーン出力の場合のフォールバック: 最初の「---」以降を抽出
+          # コードブロックが無くプレーン出力の場合のフォールバック:
+          # 冒頭の「---」直後に front matter（layout: 等）が続く形式からのみ抽出。
+          # 「---」のみ「---」の間に空行を挟んだ誤形式は対象外。
           if [ ! -s "_posts/${TODAY}-news.md" ]; then
-            awk 'found { print } /^---$\s*$/ && !found { found=1; print }' agent-result.out > "_posts/${TODAY}-news.md"
+            awk '
+              /^---[[:space:]]*$/ { bar = $0; next }
+              bar != "" && /^layout:[[:space:]]/ { print bar; print; out = 1; bar = ""; next }
+              bar != "" { bar = "" }
+              out { print }
+            ' agent-result.out > "_posts/${TODAY}-news.md"
           fi
 
           rm -f generated-prompt.md run-prompt.md agent-result.out agent-result.err
@@ -176,9 +183,11 @@ jobs:
             exit 1
           fi
 
-          # フロントマター（---で開始）が必須
-          head -n 1 "$FILE" | grep -q '^---$' || {
-            echo "NG: フロントマターがありません" >&2
+          # フロントマター（---で開始、直後に layout: が続く）が必須。
+          # 「---」のみの場合、または「---」と layout の間に空行がある誤形式は NG。
+          head -n 1 "$FILE" | grep -q '^---$' && \
+          sed -n '2p' "$FILE" | grep -qE '^layout:[[:space:]]' || {
+            echo "NG: フロントマター（--- 直後に layout:）がありませんまたは誤形式です" >&2
             echo "status=low_quality" >> "$GITHUB_OUTPUT"
             exit 0
           }
