@@ -16,6 +16,9 @@ jobs:
   build-blog:
     runs-on: ubuntu-latest
 
+    # Environment secrets（キー名: DEEPSEEK_API_KEY）を参照するための環境宣言
+    environment: key
+
     # リポジトリへの書き込み（git push）に必要な最小権限を明示
     # （デフォルトの Read では push が失敗します）
     permissions:
