@@ -139,7 +139,7 @@ jobs:
           # エージェント実行。プレーン出力（stdout）を捕捉
           openclaw agent --local --session-key "news-${TODAY}" \
             --message-file run-prompt.md \
-            --model deepseek/deepseek-chat \
+            --model deepseek-v4-flash \
             --timeout 900 \
             > agent-result.out 2>agent-result.err || {
               echo "Error: OpenClaw agent 実行に失敗しました。" >&2
