@@ -77,15 +77,38 @@ jobs:
           EOF
           echo "OpenClaw 設定を作成しました。"
 
-      # 5. 当日日付を取得し、prompt.mdの「yyyy-MM-dd」を当日日付へ置換
-      - name: Prepare prompt with today's date
+      # 5a. 現在時刻をJSTで取得し、当日日付を設定
+      - name: Prepare today's date
         run: |
           TODAY=$(date +%F)
           echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
+          echo "TODAY=${TODAY}"
+
+      # 5b. Python のセットアップと、指標取得に必要な依存ライブラリのインストール
+      - name: Setup Python & dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas
+          python --version
+          pip show yfinance | head -n 2
+
+      # 5c. fetch_indicators.py を実行し、当日の全指標を market_summary.md として生成
+      - name: Run indicator fetcher
+        run: |
+          python fetch_indicators.py
+          echo "--- generated market_summary.md ---"
+          cat market_summary.md
+
+      # 5d. prompt.md の「yyyy-MM-dd」を当日日付へ置換し、取得した指標データ(全文)を付与してプロンプトを作成
+      - name: Prepare prompt with today's date & fetched indicators
+        run: |
           mkdir -p _posts
-          # prompt.md内の「yyyy-MM-dd」を当日日付に置換して一時プロンプトを作成
+          # prompt.md内の「yyyy-MM-dd」を当日日付に置換
           sed "s/yyyy-MM-dd/${TODAY}/g" prompt.md > generated-prompt.md
-          echo "generated-prompt.md を作成しました。"
+          # 取得した指標データ全文をプロンプト末尾に追記
+          printf '\n\n【参照用：当日に自動取得した市場指標データ（必ずこの数値を使用すること）】\n' >> generated-prompt.md
+          cat market_summary.md >> generated-prompt.md
+          echo "generated-prompt.md を作成しました（指標データ内包）。"
 
       # 6. OpenClawエージェントによるブログ生成プロンプトの実行
       #    openclaw agent --local で埋め込み実行し、--json で受け取った
