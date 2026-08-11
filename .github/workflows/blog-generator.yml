@@ -136,10 +136,11 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
-          FILE="_posts/${TODAY}-news.md"
-          git add "$FILE"
-          git commit -m "docs: auto-generate news digest (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed by agent)."
-          git push
+          # エージェントが作成/再作成したファイルをすべてステージしてコミット。
+          # 既存ファイルの再生成・複数ファイル生成の両方に対応。
+          git add -A
+          git commit -m "docs: auto-generate news digest (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed or no change)."
+          git push || echo "Nothing to push."
 
   # ============ 週次ブログ（毎週土曜 JST = UTC 金曜 22:00） ============
   weekly:
@@ -238,10 +239,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
-          FILE="_posts/${TODAY}-weekly-review.md"
-          git add "$FILE"
-          git commit -m "docs: auto-generate weekly review (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed by agent)."
-          git push
+          # エージェントが作成/再作成したファイルをすべてステージしてコミット。
+          git add -A
+          git commit -m "docs: auto-generate weekly review (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed or no change)."
+          git push || echo "Nothing to push."
 
   # ============ 月次ブログ（毎月1日 JST） ============
   monthly:
@@ -341,7 +342,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
-          FILE="_posts/${TODAY}-monthly-review.md"
-          git add "$FILE"
-          git commit -m "docs: auto-generate monthly review (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed by agent)."
-          git push
+          # エージェントが作成/再作成したファイルをすべてステージしてコミット。
+          git add -A
+          git commit -m "docs: auto-generate monthly review (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed or no change)."
+          git push || echo "Nothing to push."
