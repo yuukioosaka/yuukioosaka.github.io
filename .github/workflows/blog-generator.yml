@@ -112,9 +112,8 @@ jobs:
           cat market_summary.md >> generated-prompt.md
           echo "generated-prompt.md を作成しました（指標データ内包）。"
 
-      # 6. OpenClawエージェントによるブログ生成プロンプトの実行
-      #    openclaw agent --local で埋め込み実行し、--json で受け取った
-      #    最終メッセージ（記事全文）を抽出して _posts/yyyy-MM-dd-news.md に保存します。
+      # 6. OpenClawエージェントによるブログ生成。エージェントが
+      #    ./_posts/yyyy-MM-dd-news.md に記事ファイルを直接作成します。
       - name: Run OpenClaw Agent
         env:
           TODAY: ${{ env.TODAY }}
@@ -128,87 +127,21 @@ jobs:
             cat generated-prompt.md >> run-prompt.md
           fi
 
-          # 記事保存の手順をプロンプト末尾に追記
-          #   ※heredoc内のバッククォートはシェルのコマンド置換で壊れるため「コードフェンス」表現で回避
-          cat >> run-prompt.md << PROMPTEOF
-
-          以下の手順に従ってください：
-          1. 上記の指示に基づき、組み込みの検索ツールで当日のニュース・市場データをリサーチしてください。
-          2. 記事冒頭にはJekyllのフロントマター（layout: post / title / date: ${TODAY} 00:00:00 +0900 / excerpt）を付与してください。
-          3. 完成したMarkdown記事の全文を、コードフェンス（バッククォート3連）で囲まず、説明文や注記を一切付けず、Markdown本文のみを最終メッセージとしてそのまま返してください。冒頭は必ずフロントマターで開始してください。
-          PROMPTEOF
-
-          # エージェント実行。プレーン出力（stdout）を捕捉
+          # エージェント実行。エージェントが _posts/${TODAY}-news.md を直接作成する。
+          # 標準出力はログへ。失敗時はエラーメッセージを出して明示的に異常終了させる。
           openclaw agent --local --session-key "news-${TODAY}" \
             --message-file run-prompt.md \
             --model deepseek/deepseek-v4-flash \
-            --timeout 900 \
-            > agent-result.out 2>agent-result.err || {
+            --timeout 900 2>agent-error.log || {
               echo "Error: OpenClaw agent 実行に失敗しました。" >&2
-              cat agent-result.err >&2
+              cat agent-error.log >&2
+              rm -f generated-prompt.md run-prompt.md agent-error.log
               exit 1
             }
+          rm -f agent-error.log
 
-          # 記事は ```markdown ... ``` のコードブロックで囲んで返される場合があるため、
-          # ブロック内の front matter から記事本文のみを抽出して保存
-          awk '
-            /^```markdown/ { inblock=1; next }
-            /^```/ { if (inblock) inblock=0; next }
-            inblock { print }
-          ' agent-result.out > "_posts/${TODAY}-news.md"
-
-          # コードブロックが無くプレーン出力の場合のフォールバック:
-          # 冒頭の「---」直後に front matter（layout: 等）が続く形式からのみ抽出。
-          # 「---」のみ「---」の間に空行を挟んだ誤形式は対象外。
-          if [ ! -s "_posts/${TODAY}-news.md" ]; then
-            awk '
-              /^---[[:space:]]*$/ { bar = $0; next }
-              bar != "" && /^layout:[[:space:]]/ { print bar; print; out = 1; bar = ""; next }
-              bar != "" { bar = "" }
-              out { print }
-            ' agent-result.out > "_posts/${TODAY}-news.md"
-          fi
-
-          rm -f generated-prompt.md run-prompt.md agent-result.out agent-result.err
-
-          # 生成ファイルの一時保存（検証NG時の診断用に残す）
-          cp "_posts/${TODAY}-news.md" ".news-draft-${TODAY}.md"
-
-      # 7. 記事の質を検証。NG ならコミット/プッシュを行わない
-      - name: Validate Article
-        id: validate
-        run: |
-          FILE="_posts/${TODAY}-news.md"
-          if [ ! -f "$FILE" ]; then
-            echo "Error: ${FILE} が生成されていません。" >&2
-            echo "status=failed" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-          # フロントマター（---で開始、直後に layout: が続く）が必須。
-          # 「---」のみの場合、または「---」と layout の間に空行がある誤形式は NG。
-          head -n 1 "$FILE" | grep -q '^---$' && \
-          sed -n '2p' "$FILE" | grep -qE '^layout:[[:space:]]' || {
-            echo "NG: フロントマター（--- 直後に layout:）がありませんまたは誤形式です" >&2
-            echo "status=low_quality" >> "$GITHUB_OUTPUT"
-            exit 0
-          }
-
-          # 本文（フロントマター除去後）の文字数と見出しをチェック
-          CHARS=$(tail -n +5 "$FILE" | tr -d '[:space:]' | wc -c)
-          HEADERS=$(grep -cE '^#{1,3} ' "$FILE" || true)
-          echo "記事文字数: ${CHARS}, 見出し数: ${HEADERS}"
-          if [ "$CHARS" -lt 500 ] || [ "$HEADERS" -lt 2 ]; then
-            echo "NG: 記事が不自然に短い・見出し不足 (char=${CHARS}, headers=${HEADERS})" >&2
-            echo "status=low_quality" >> "$GITHUB_OUTPUT"
-          else
-            echo "OK: 記事は妥当です"
-            echo "status=ok" >> "$GITHUB_OUTPUT"
-          fi
-
-      # 8. 生成された記事をGitHubに自動コミット & プッシュ（検証OK時のみ）
+      # 7. 生成された記事をGitHubに自動コミット & プッシュ
       - name: Commit and Push Generated Blog
-        if: ${{ steps.validate.outputs.status == 'ok' }}
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
@@ -217,18 +150,3 @@ jobs:
           git add "$FILE"
           git commit -m "docs: auto-generate news digest (${TODAY}) by OpenClaw"
           git push
-
-      # 9. 検証NG時はコミットせず、診断用に記事をアーティファクト保存
-      - name: Upload Draft Artifact (for review)
-        if: ${{ steps.validate.outputs.status == 'low_quality' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: news-draft-${{ env.TODAY }}
-          path: .news-draft-${{ env.TODAY }}.md
-
-      # 10. 検証NG時の通知（ワークフロー成功率に影響させない・ただし警告を明示）
-      - name: Warn on Low Quality
-        if: ${{ steps.validate.outputs.status == 'low_quality' }}
-        run: |
-          echo "::warning::記事の品質が不十分なためコミットをスキップしました。"
-          echo "::warning::手動確認用は Actions の『news-draft-${TODAY}』アーティファクトから取得してください。"
