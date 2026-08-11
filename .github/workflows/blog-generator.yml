@@ -69,7 +69,8 @@ jobs:
             "tools": {
               "web": {
                 "search": {
-                  "enabled": true
+                  "enabled": true,
+                  "provider": "duckduckgo"
                 }
               }
             }
