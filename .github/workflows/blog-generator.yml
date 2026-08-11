@@ -104,31 +104,22 @@ jobs:
           3. 完成したMarkdown記事の全文を最終メッセージとして返してください（ファイル保存ではなく返答の全文を出力）。
           PROMPTEOF
 
-          # エージェント実行。--json で stdout をJSONエンベロープ専用にし、
-          # ログが記事に混ざるのを防止。JSONから最終メッセージを抽出して保存。
+          # エージェント実行。プレーン出力（stdout）を捕捉
           openclaw agent --local --session-key "news-${TODAY}" \
             --message-file run-prompt.md \
             --model deepseek/deepseek-chat \
-            --timeout 900 --json \
-            > agent-result.json 2>agent-result.err || {
+            --timeout 900 \
+            > agent-result.out 2>agent-result.err || {
               echo "Error: OpenClaw agent 実行に失敗しました。" >&2
               cat agent-result.err >&2
               exit 1
             }
 
-          # JSON から記事全文（final または payloads[0].text）を抽出
-          node -e '
-            const fs = require("fs");
-            const data = JSON.parse(fs.readFileSync("agent-result.json", "utf8"));
-            const text = data.final || (data.payloads && data.payloads[0] && data.payloads[0].text) || "";
-            if (!text) {
-              console.error("Error: 記事テキストがレスポンスに含まれていません。");
-              process.exit(1);
-            }
-            fs.writeFileSync(process.argv[1], text.trim() + "\n");
-          ' "_posts/${TODAY}-news.md"
+          # 記事は必ず Jekyll フロントマター（--- 行）から始まるため、
+          # stdout に混ざるログ行（[xxx] 形式）を無視し、最初の「---」以降を記事として抽出
+          awk 'found { print } /^---$\s*$/ && !found { found=1; print }' agent-result.out > "_posts/${TODAY}-news.md"
 
-          rm -f generated-prompt.md run-prompt.md agent-result.json agent-result.err
+          rm -f generated-prompt.md run-prompt.md agent-result.out agent-result.err
 
           # 生成結果の検証（フロントマターが含まれているか）
           if ! head -n 1 "_posts/${TODAY}-news.md" | grep -q '^---$'; then
