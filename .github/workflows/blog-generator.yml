@@ -1,0 +1,111 @@
+name: Auto News Digest Generator
+
+on:
+  # 毎日 JST 7:00（UTC 22:00）に自動実行
+  schedule:
+    - cron: '0 22 * * *'
+  # 手動実行のトリガー（任意でテーマ・特記を追加可能）
+  workflow_dispatch:
+    inputs:
+      note:
+        description: '記事作成への追加指示（任意）'
+        required: false
+        default: ''
+
+jobs:
+  build-blog:
+    runs-on: ubuntu-latest
+
+    # リポジトリへの書き込み（git push）に必要な最小権限を明示
+    # （デフォルトの Read では push が失敗します）
+    permissions:
+      contents: write
+
+    steps:
+      # 1. コードのチェックアウト
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Node.js 22のセットアップ（OpenClawはNode 22以上を推奨。
+      #    ubuntu-latest のデフォルトNodeに依存せず明示的に固定）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 3. OpenClawのグローバルインストール
+      - name: Install OpenClaw
+        run: |
+          npm install -g openclaw@latest
+          echo "OpenClaw installed successfully."
+
+      # 4. OpenClawのヘッドレス設定（APIキー不要のDuckDuckGo検索プロバイダーを使用）
+      - name: Configure OpenClaw for DeepSeek & DuckDuckGo
+        run: |
+          mkdir -p ~/.openclaw
+          cat << 'EOF' > ~/.openclaw/openclaw.json
+          {
+            "providers": {
+              "openai_compatible": {
+                "deepseek": {
+                  "apiKey": "${{ secrets.DEEPSEEK_API_KEY }}",
+                  "baseUrl": "https://deepseek.com",
+                  "defaultModel": "deepseek-chat"
+                }
+              }
+            },
+            "tools": {
+              "profile": "full",
+              "webSearch": {
+                "provider": "duckduckgo"
+              }
+            }
+          }
+          EOF
+
+      # 5. 当日日付をコア格納し、prompt.mdの「yyyy-MM-dd」を当日日付へ置換
+      - name: Prepare prompt with today's date
+        run: |
+          TODAY=$(date +%F)
+          echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
+          mkdir -p _posts
+          # prompt.md内の「yyyy-MM-dd」を当日日付に置換して一時プロンプトを作成
+          sed "s/yyyy-MM-dd/${TODAY}/g" prompt.md > generated-prompt.md
+          echo "generated-prompt.md を作成しました。"
+
+      # 6. OpenClawエージェントによるブログ生成プロンプトの実行
+      - name: Run OpenClaw Agent
+        env:
+          TODAY: ${{ env.TODAY }}
+          EXTRA_NOTE: ${{ github.event.inputs.note }}
+        run: |
+          # prompt.mdから置換済みのプロンプトを読み込み、追加指示があれば付与
+          PROMPT="$(cat generated-prompt.md)"
+          if [ -n "$EXTRA_NOTE" ]; then
+            PROMPT=$'以下の追加指示にも従ってください。\n'"${EXTRA_NOTE}"$'\n\n'"${PROMPT}"
+          fi
+          openclaw run --non-interactive --prompt "
+          ${PROMPT}
+
+          以下の手順に従ってください：
+          1. 上記の指示に基づき、組み込みの検索ツールで当日のニュース・市場データをリサーチしてください。
+          2. 記事冒頭にはJekyllのフロントマター（layout: post / title / date: ${TODAY} 00:00:00 +0900 / excerpt）を付与してください。
+          3. 完成した記事は必ずファイル名 '_posts/${TODAY}-news.md' としてカレントディレクトリに保存してください。
+          "
+
+      # 7. 生成された記事をGitHubに自動コミット & プッシュ
+      - name: Commit and Push Generated Blog
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+
+          FILE="_posts/${TODAY}-news.md"
+          if [ -f "$FILE" ]; then
+            rm -f generated-prompt.md
+            git add "$FILE"
+            git commit -m "docs: auto-generate news digest (${TODAY}) by OpenClaw"
+            git push
+          else
+            echo "Error: ${FILE} が生成されませんでした。"
+            exit 1
+          fi
