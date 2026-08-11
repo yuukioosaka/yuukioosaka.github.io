@@ -39,7 +39,34 @@ jobs:
           npm install -g openclaw@latest
           echo "OpenClaw installed successfully."
 
-      # 4. 当日日付をコア格納し、prompt.mdの「yyyy-MM-dd」を当日日付へ置換
+      # 4. DeepSeek (OpenAI互換) プロバイダーを登録した設定を生成
+      #    apiKey は SecretRef（env）指定で、実行時環境変数 DEEPSEEK_API_KEY から
+      #    解決されるため、設定ファイルやログに実キーが露出しません。
+      - name: Configure DeepSeek provider
+        run: |
+          mkdir -p ~/.openclaw
+          cat << 'EOF' > ~/.openclaw/openclaw.json
+          {
+            "models": {
+              "mode": "merge",
+              "providers": {
+                "deepseek": {
+                  "baseUrl": "https://api.deepseek.com",
+                  "apiKey": {
+                    "source": "env",
+                    "provider": "default",
+                    "id": "DEEPSEEK_API_KEY"
+                  },
+                  "auth": "api-key",
+                  "api": "openai-completions"
+                }
+              }
+            }
+          }
+          EOF
+          echo "DeepSeek プロバイダー設定を作成しました。"
+
+      # 5. 当日日付を取得し、prompt.mdの「yyyy-MM-dd」を当日日付へ置換
       - name: Prepare prompt with today's date
         run: |
           TODAY=$(date +%F)
@@ -49,17 +76,14 @@ jobs:
           sed "s/yyyy-MM-dd/${TODAY}/g" prompt.md > generated-prompt.md
           echo "generated-prompt.md を作成しました。"
 
-      # 5. OpenClawエージェントによるブログ生成プロンプトの実行
-      #    openclaw agent exec はヘッドレスCI実行用のコマンド。
-      #    stdout にエージェントの最終メッセージ（記事全文）が出力されるため、
-      #    それを _posts/yyyy-MM-dd-news.md に保存します。
+      # 6. OpenClawエージェントによるブログ生成プロンプトの実行
+      #    openclaw agent --local で埋め込み実行し、--json で受け取った
+      #    最終メッセージ（記事全文）を抽出して _posts/yyyy-MM-dd-news.md に保存します。
       - name: Run OpenClaw Agent
         env:
           TODAY: ${{ env.TODAY }}
           EXTRA_NOTE: ${{ github.event.inputs.note || '' }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_BASE_URL: https://deepseek.com
-          DEEPSEEK_MODEL: deepseek-chat
         run: |
           # prompt.mdから置換済みのプロンプトを読み込み、追加指示があれば付与
           cp generated-prompt.md run-prompt.md
@@ -77,12 +101,31 @@ jobs:
           3. 完成したMarkdown記事の全文を最終メッセージとして返してください（ファイル保存ではなく返答の全文を出力）。
           PROMPTEOF
 
-          # エージェント実行。最終メッセージ（記事全文）を記事ファイルへ保存
-          openclaw agent exec --message-file run-prompt.md --auth-env-only \
+          # エージェント実行。--json で stdout をJSONエンベロープ専用にし、
+          # ログが記事に混ざるのを防止。JSONから最終メッセージを抽出して保存。
+          openclaw agent --local --session-key "news-${TODAY}" \
+            --message-file run-prompt.md \
             --model deepseek/deepseek-chat \
-            > "_posts/${TODAY}-news.md"
+            --timeout 900 --json \
+            > agent-result.json 2>agent-result.err || {
+              echo "Error: OpenClaw agent 実行に失敗しました。" >&2
+              cat agent-result.err >&2
+              exit 1
+            }
 
-          rm -f generated-prompt.md run-prompt.md
+          # JSON から記事全文（final または payloads[0].text）を抽出
+          node -e '
+            const fs = require("fs");
+            const data = JSON.parse(fs.readFileSync("agent-result.json", "utf8"));
+            const text = data.final || (data.payloads && data.payloads[0] && data.payloads[0].text) || "";
+            if (!text) {
+              console.error("Error: 記事テキストがレスポンスに含まれていません。");
+              process.exit(1);
+            }
+            fs.writeFileSync(process.argv[1], text.trim() + "\n");
+          ' "_posts/${TODAY}-news.md"
+
+          rm -f generated-prompt.md run-prompt.md agent-result.json agent-result.err
 
           # 生成結果の検証（フロントマターが含まれているか）
           if ! head -n 1 "_posts/${TODAY}-news.md" | grep -q '^---$'; then
@@ -90,7 +133,7 @@ jobs:
             exit 1
           fi
 
-      # 6. 生成された記事をGitHubに自動コミット & プッシュ
+      # 7. 生成された記事をGitHubに自動コミット & プッシュ
       - name: Commit and Push Generated Blog
         run: |
           git config --local user.email "action@github.com"
