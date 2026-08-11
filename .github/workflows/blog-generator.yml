@@ -41,6 +41,7 @@ jobs:
         run: |
           npm install -g openclaw@latest
           echo "OpenClaw installed successfully."
+          openclaw plugins install duckduckgo
 
       # 4. DeepSeek (OpenAI互換) プロバイダーと Web検索を登録した設定を生成
       #    apiKey は SecretRef（env）指定で、実行時環境変数 DEEPSEEK_API_KEY から
