@@ -101,7 +101,7 @@ jobs:
           以下の手順に従ってください：
           1. 上記の指示に基づき、組み込みの検索ツールで当日のニュース・市場データをリサーチしてください。
           2. 記事冒頭にはJekyllのフロントマター（layout: post / title / date: ${TODAY} 00:00:00 +0900 / excerpt）を付与してください。
-          3. 完成したMarkdown記事の全文を最終メッセージとして返してください（ファイル保存ではなく返答の全文を出力）。
+          3. 完成したMarkdown記事の全文を、コードブロック記法（```）で囲まず、説明文や注記を一切付けず、Markdown本文のみを最終メッセージとしてそのまま返してください。冒頭を必ず「---」行で開始してください。
           PROMPTEOF
 
           # エージェント実行。プレーン出力（stdout）を捕捉
@@ -115,9 +115,18 @@ jobs:
               exit 1
             }
 
-          # 記事は必ず Jekyll フロントマター（--- 行）から始まるため、
-          # stdout に混ざるログ行（[xxx] 形式）を無視し、最初の「---」以降を記事として抽出
-          awk 'found { print } /^---$\s*$/ && !found { found=1; print }' agent-result.out > "_posts/${TODAY}-news.md"
+          # 記事は ```markdown ... ``` のコードブロックで囲んで返される場合があるため、
+          # ブロック内の front matter から記事本文のみを抽出して保存
+          awk '
+            /^```markdown/ { inblock=1; next }
+            /^```/ { if (inblock) inblock=0; next }
+            inblock { print }
+          ' agent-result.out > "_posts/${TODAY}-news.md"
+
+          # コードブロックが無くプレーン出力の場合のフォールバック: 最初の「---」以降を抽出
+          if [ ! -s "_posts/${TODAY}-news.md" ]; then
+            awk 'found { print } /^---$\s*$/ && !found { found=1; print }' agent-result.out > "_posts/${TODAY}-news.md"
+          fi
 
           rm -f generated-prompt.md run-prompt.md agent-result.out agent-result.err
 
