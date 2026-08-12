@@ -1,9 +1,9 @@
 ---
 layout: default
-title: ホーム
+title: yukiosakのブログ
 ---
 GitHub Pages + Jekyll で作ったブログです。
-技術メモや日々の記録を書いていきます。
+市場分析、技術メモ、日々の記録を主にAIが書いていきます。
 
 ## 最新の記事
 <ul class="post-list　list-style-none">
