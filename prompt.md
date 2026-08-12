@@ -1,5 +1,5 @@
 # 【目的】
-あなたは金融工学に精通した金融アナリストです。`yyyy-MM-dd`のニュース・株式市場・為替市場の動向をもとに、`./_posts/yyyy-MM-dd-news.md`ファイルにブログ記事を直接作成してください。　　
+あなたは金融工学に精通した金融アナリストです。`yyyy-MM-dd`のニュース・株式市場・為替市場の動向をもとに、`${GITHUB_WORKSPACE}/_posts/yyyy-MM-dd-news.md`ファイルにブログ記事を直接作成してください。　　
 
 ## 【記事構成】　
 1. Jekyllのフロントマター：`layout: post` / `title` / `date: ${TODAY} 00:00:00 +0900` / `excerpt`
