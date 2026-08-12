@@ -79,6 +79,31 @@ def compute_vol(series: pd.Series, window: int = 252) -> float:
     return rets[-window:].std() * (252 ** 0.5) * 100
 
 
+def compute_annual_return(series: pd.Series) -> float:
+    """直近1年の年次リターン(%)を算出。最初と最後の値から年率換算。"""
+    if len(series) < 20:
+        return float("nan")
+    first = series.iloc[0]
+    last = series.iloc[-1]
+    if not first or pd.isna(first) or pd.isna(last):
+        return float("nan")
+    n = len(series)
+    return ((last / first) ** (252 / n) - 1) * 100
+
+
+def compute_sharpe(series: pd.Series, rfr: float = 0.0) -> float:
+    """年次シャープレシオ。日次超過リターン標準偏差 × √252 。rfr は年率(%)。"""
+    if len(series) < 20:
+        return float("nan")
+    rets = series.pct_change().dropna()
+    daily_rfr = (rfr / 100.0) / 252.0
+    excess = rets - daily_rfr
+    std = excess.std()
+    if not std or pd.isna(std):
+        return float("nan")
+    return (excess.mean() / std) * (252 ** 0.5)
+
+
 def calc_jgb_price(yield_val, coupon: float = 0.8, years_to_maturity: int = 10):
     """利回り(%)から 100円額面あたりの固定利付債の参考価格を逆算する。
 
@@ -159,6 +184,13 @@ def main():
             # 日本国債10年債利回りは investing.com からスクレイピング
             today, prev, scraped_pct = fetch_japan_10y()
 
+        # 年次リターン / シャープレシオ (価格系列がある指数系のみ算出、利回り系は除外)
+        annual_ret = float("nan")
+        sharpe = float("nan")
+        if price_ticker and name not in ("米10年債利回り", "日本国債10年債利回り"):
+            annual_ret = compute_annual_return(series)
+            sharpe = compute_sharpe(series)
+
         # 利回り系(^TNX, 日本10年債)は % 表記
         percent_base = (price_ticker == "^TNX") or (price_ticker is None)
         pct = scraped_pct
@@ -190,6 +222,8 @@ def main():
             "前日比率": f"{pct:.2f}%" if pct is not None else "-",
             "年次ボラティリティ": f"{vi_value:.1f}%" if not pd.isna(vi_value) else "-",
             "年次レンジ": rng,
+            "年次リターン": f"{annual_ret:.2f}%" if not pd.isna(annual_ret) else "-",
+            "シャープレシオ": f"{sharpe:.2f}" if not pd.isna(sharpe) else "-",
         })
         print(f"  ✅ {name:<24} 当日={fmt(today, percent=percent_base):>12} VI({vi_label})={fmt(vi_value, percent=True)}")
 
@@ -201,12 +235,13 @@ def main():
     lines.append("## 📊 市場指標サマリー")
     lines.append(f"\n_取得日時: {today_str} ・ データソース: Yahoo Finance (yfinance)_")
     lines.append("※ 年次ボラティリティ = 各指標の専用VI実測値\n")
-    lines.append("| カテゴリ | 指標 | 当日 | 前日 | 前日比率 | 年次ボラティリティ | 年次レンジ(σ1.0) |")
-    lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+    lines.append("| カテゴリ | 指標 | 当日 | 前日 | 前日比率 | 年次ボラティリティ | 年次レンジ(σ1.0) | 年次リターン | シャープレシオ |")
+    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for _, r in df.iterrows():
         lines.append(
             f"| {r['カテゴリ']} | {r['指標']} | {r['当日']} | {r['前日']} | "
-            f"{r['前日比率']} | {r['年次ボラティリティ']} | {r['年次レンジ']} |"
+            f"{r['前日比率']} | {r['年次ボラティリティ']} | {r['年次レンジ']} | "
+            f"{r['年次リターン']} | {r['シャープレシオ']} |"
         )
 
     # 注記 (各指標のVI対応)
@@ -227,6 +262,8 @@ def main():
     lines.append("\n※ HV は専用VI/IVがYahooに存在しない指標の代用値 (実測ボラティリティ)。")
     lines.append("※ HV代用 = 直近1年(約252営業日)の日次リターン標準偏差 × √252 で年率換算。")
     lines.append("※ 年次レンジ = 当日値 ± 年次ボラティリティ(VI%) の1σレンジ (※推定/概算)。")
+    lines.append("※ 年次リターン = 直近1年の初値→終値から年率換算。シャープレシオ = 日次超過リターンの年次化(リスクフリーレート0%想定)。")
+    lines.append("※ 年次リターン/シャープレシオは株式・為替・コモディティの価格系指標のみ算出(利回り系は除外)。")
 
     md = "\n".join(lines) + "\n"
 
