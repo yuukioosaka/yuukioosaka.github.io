@@ -1,5 +1,5 @@
 ---
-layout: post
+layout: default
 title: TransformerモデルとLLM：基本原理解説
 date: 2025-01-01 00:00:00 +0900
 excerpt: Transformerの基本原理から応用、LLMとの関係まで広く解説した入門記事。

@@ -1,5 +1,5 @@
 ---
-layout: post
+layout: default
 title: AWSは高い！
 date: 2022-09-23 00:00:00 +0900
 excerpt: 円安によりAWSコストが上昇。サーバーレス化やAutoscaling、SPOTインスタンスなどによるコスト削減策をまとめる。
