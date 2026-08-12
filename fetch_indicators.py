@@ -220,10 +220,10 @@ def main():
             "当日": fmt(today, percent=percent_base),
             "前日": fmt(prev, percent=percent_base),
             "前日比率": f"{pct:.2f}%" if pct is not None else "-",
-            "年次ボラティリティ": f"{vi_value:.1f}%" if not pd.isna(vi_value) else "-",
-            "年次レンジ": rng,
             "年次リターン": f"{annual_ret:.2f}%" if not pd.isna(annual_ret) else "-",
+            "年次ボラティリティ": f"{vi_value:.1f}%" if not pd.isna(vi_value) else "-",
             "シャープレシオ": f"{sharpe:.2f}" if not pd.isna(sharpe) else "-",
+            "年次レンジ": rng,
         })
         print(f"  ✅ {name:<24} 当日={fmt(today, percent=percent_base):>12} VI({vi_label})={fmt(vi_value, percent=True)}")
 
@@ -235,13 +235,13 @@ def main():
     lines.append("## 📊 市場指標サマリー")
     lines.append(f"\n_取得日時: {today_str} ・ データソース: Yahoo Finance (yfinance)_")
     lines.append("※ 年次ボラティリティ = 各指標の専用VI実測値\n")
-    lines.append("| カテゴリ | 指標 | 当日 | 前日 | 前日比率 | 年次ボラティリティ | 年次レンジ(σ1.0) | 年次リターン | シャープレシオ |")
+    lines.append("| カテゴリ | 指標 | 当日 | 前日 | 前日比率 | 年次リターン | 年次ボラティリティ | シャープレシオ | 年次レンジ(σ1.0) |")
     lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for _, r in df.iterrows():
         lines.append(
             f"| {r['カテゴリ']} | {r['指標']} | {r['当日']} | {r['前日']} | "
-            f"{r['前日比率']} | {r['年次ボラティリティ']} | {r['年次レンジ']} | "
-            f"{r['年次リターン']} | {r['シャープレシオ']} |"
+            f"{r['前日比率']} | {r['年次リターン']} | {r['年次ボラティリティ']} | "
+            f"{r['シャープレシオ']} | {r['年次レンジ']} |"
         )
 
     # 注記 (各指標のVI対応)
