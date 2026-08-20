@@ -108,7 +108,9 @@ jobs:
         if: ${{ env.skip != 'true' }}
         run: |
           mkdir -p _posts
-          sed "s/yyyy-MM-dd/${TODAY}/g" prompt.md > generated-prompt.md
+          sed -e "s/yyyy-MM-dd/${TODAY}/g" \
+              -e "s|\$GITHUB_WORKSPACE|${GITHUB_WORKSPACE}|g" \
+              prompt.md > generated-prompt.md
           printf '\n\n【参照用：当日に自動取得した市場指標データ（必ずこの数値を使用すること）】\n' >> generated-prompt.md
           cat market_summary.md >> generated-prompt.md
           echo "generated-prompt.md を作成しました（指標データ内包）。"
