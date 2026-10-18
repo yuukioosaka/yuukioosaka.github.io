@@ -56,6 +56,11 @@ jobs:
         run: |
           npm install -g @deepseek-ai/dsh@latest
           dsh --version
+          # 無料検索プロバイダ（API キー不要、既定エンジンは bing）を headless に導入。
+          # web_fetch は公式の HTTP プロバイダで元から無料。導入に失敗しても
+          # 公式検索プロバイダ（当面無料）で続行する。
+          CI=1 dsh plugin --profile headless add github:DDDMUC/dsh-free-search \
+            || echo "::warning::dsh-free-search を導入できませんでした。公式検索プロバイダで続行します。"
           echo "DeepSeek Harness (dsh) installed successfully."
 
       - name: Setup Python & dependencies
@@ -147,6 +152,11 @@ jobs:
         run: |
           npm install -g @deepseek-ai/dsh@latest
           dsh --version
+          # 無料検索プロバイダ（API キー不要、既定エンジンは bing）を headless に導入。
+          # web_fetch は公式の HTTP プロバイダで元から無料。導入に失敗しても
+          # 公式検索プロバイダ（当面無料）で続行する。
+          CI=1 dsh plugin --profile headless add github:DDDMUC/dsh-free-search \
+            || echo "::warning::dsh-free-search を導入できませんでした。公式検索プロバイダで続行します。"
           echo "DeepSeek Harness (dsh) installed successfully."
 
       - name: Run dsh Agent
@@ -215,6 +225,11 @@ jobs:
         run: |
           npm install -g @deepseek-ai/dsh@latest
           dsh --version
+          # 無料検索プロバイダ（API キー不要、既定エンジンは bing）を headless に導入。
+          # web_fetch は公式の HTTP プロバイダで元から無料。導入に失敗しても
+          # 公式検索プロバイダ（当面無料）で続行する。
+          CI=1 dsh plugin --profile headless add github:DDDMUC/dsh-free-search \
+            || echo "::warning::dsh-free-search を導入できませんでした。公式検索プロバイダで続行します。"
           echo "DeepSeek Harness (dsh) installed successfully."
 
       - name: Run dsh Agent
