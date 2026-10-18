@@ -1,0 +1,7 @@
+# dsh の patch は行の config をまるごと置き換えるため、必須の name と
+# apiKeyEnv も明示する（apiKeyEnv の既定値と同じ値）。
+- id: llm-deepseek
+  name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+  config:
+    apiKeyEnv: DEEPSEEK_API_KEY
+    thinking: disabled
