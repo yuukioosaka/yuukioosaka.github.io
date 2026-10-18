@@ -11,8 +11,29 @@ on:
     #- cron: '10 21 * * 5'
     # 月次：毎月1日 JST 0:00 = UTC 前月末 15:00。毎日実行しジョブ内で判定。
     #- cron: '20 21 * * *'
-  # 手動実行のトリガー
+  # 手動実行のトリガー（デバッグ用に日付・対象ジョブを指定可能）
   workflow_dispatch:
+    inputs:
+      date:
+        description: '対象日 (YYYY-MM-DD, JST)。空なら今日。デバッグ用。'
+        required: false
+        default: ''
+        type: string
+      job:
+        description: '実行対象ジョブ'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - daily
+          - weekly
+          - monthly
+      force:
+        description: '曜日/日付ガードを無視して実行'
+        required: false
+        default: false
+        type: boolean
 
 env:
   DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -30,15 +51,35 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare today's date (JST)
+        env:
+          INPUT_DATE: ${{ inputs.date }}
+          INPUT_JOB: ${{ inputs.job }}
+          INPUT_FORCE: ${{ inputs.force }}
         run: |
-          TODAY=$(TZ=Asia/Tokyo date +%F)
+          if [ -n "${INPUT_DATE}" ]; then
+            TODAY=$(date -d "${INPUT_DATE}" +%F) || { echo "::error::invalid date input: ${INPUT_DATE}"; exit 1; }
+          else
+            TODAY=$(TZ=Asia/Tokyo date +%F)
+          fi
           echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
+          echo "REQUESTED_JOB=${INPUT_JOB:-all}" >> "$GITHUB_ENV"
+          echo "FORCE=${INPUT_FORCE:-false}" >> "$GITHUB_ENV"
           echo "TODAY=${TODAY}"
 
-      # 日次は JST 火〜土のみ。判定は JST の曜日（月=1...日=7 → 火..土 = 2..6）。
+      # 日次は JST 火〜土のみ。判定は TODAY の曜日（月=1...日=7 → 火..土 = 2..6）。
       - name: Guard for Tue-Sat (JST)
         run: |
-          DOW=$(TZ=Asia/Tokyo date +%u)
+          if [ "$FORCE" = "true" ]; then
+            echo "::notice::force=true のためガードを無視します。"
+            echo "skip=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if [ "$REQUESTED_JOB" != "all" ] && [ "$REQUESTED_JOB" != "daily" ]; then
+            echo "::notice::job=${REQUESTED_JOB} のため daily をスキップします。"
+            echo "skip=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          DOW=$(TZ=Asia/Tokyo date -d "$TODAY" +%u)
           if [ "$DOW" -ge 2 ] && [ "$DOW" -le 6 ]; then
             echo "skip=false" >> "$GITHUB_ENV"
           else
@@ -126,15 +167,35 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare today's date (JST)
+        env:
+          INPUT_DATE: ${{ inputs.date }}
+          INPUT_JOB: ${{ inputs.job }}
+          INPUT_FORCE: ${{ inputs.force }}
         run: |
-          TODAY=$(TZ=Asia/Tokyo date +%F)
+          if [ -n "${INPUT_DATE}" ]; then
+            TODAY=$(date -d "${INPUT_DATE}" +%F) || { echo "::error::invalid date input: ${INPUT_DATE}"; exit 1; }
+          else
+            TODAY=$(TZ=Asia/Tokyo date +%F)
+          fi
           echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
+          echo "REQUESTED_JOB=${INPUT_JOB:-all}" >> "$GITHUB_ENV"
+          echo "FORCE=${INPUT_FORCE:-false}" >> "$GITHUB_ENV"
           echo "TODAY=${TODAY}"
 
       # 週次は JST 土曜（曜日=6）のみ。それ以外はスキップ。
       - name: Guard for Saturday (JST)
         run: |
-          DOW=$(TZ=Asia/Tokyo date +%u)
+          if [ "$FORCE" = "true" ]; then
+            echo "::notice::force=true のためガードを無視します。"
+            echo "skip=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if [ "$REQUESTED_JOB" != "all" ] && [ "$REQUESTED_JOB" != "weekly" ]; then
+            echo "::notice::job=${REQUESTED_JOB} のため weekly をスキップします。"
+            echo "skip=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          DOW=$(TZ=Asia/Tokyo date -d "$TODAY" +%u)
           if [ "$DOW" -eq 6 ]; then
             echo "skip=false" >> "$GITHUB_ENV"
           else
@@ -198,16 +259,36 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare today's date (JST)
+        env:
+          INPUT_DATE: ${{ inputs.date }}
+          INPUT_JOB: ${{ inputs.job }}
+          INPUT_FORCE: ${{ inputs.force }}
         run: |
-          TODAY=$(TZ=Asia/Tokyo date +%F)
+          if [ -n "${INPUT_DATE}" ]; then
+            TODAY=$(date -d "${INPUT_DATE}" +%F) || { echo "::error::invalid date input: ${INPUT_DATE}"; exit 1; }
+          else
+            TODAY=$(TZ=Asia/Tokyo date +%F)
+          fi
           echo "TODAY=${TODAY}" >> "$GITHUB_ENV"
+          echo "REQUESTED_JOB=${INPUT_JOB:-all}" >> "$GITHUB_ENV"
+          echo "FORCE=${INPUT_FORCE:-false}" >> "$GITHUB_ENV"
           echo "TODAY=${TODAY}"
 
-      # 月次は毎月1日（JST）のみ。判定は「JST日付の日 = 01」。
+      # 月次は毎月1日（JST）のみ。判定は「TODAY の日 = 01」。
       # それ以外の日はセットアップごとスキップしてリソースを無駄にしない。
       - name: Guard for 1st of month (JST)
         run: |
-          DAY=$(TZ=Asia/Tokyo date +%d)
+          if [ "$FORCE" = "true" ]; then
+            echo "::notice::force=true のためガードを無視します。"
+            echo "skip=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if [ "$REQUESTED_JOB" != "all" ] && [ "$REQUESTED_JOB" != "monthly" ]; then
+            echo "::notice::job=${REQUESTED_JOB} のため monthly をスキップします。"
+            echo "skip=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          DAY=$(TZ=Asia/Tokyo date -d "$TODAY" +%d)
           if [ "$DAY" = "01" ]; then
             echo "skip=false" >> "$GITHUB_ENV"
           else
