@@ -99,6 +99,34 @@ jobs:
           dsh --version
           echo "DeepSeek Harness (dsh) installed successfully."
 
+      # web_search を Tavily 経由にする検索プロバイダを導入する。
+      # TAVILY_API_KEY があればキー付き（無料1,000クレジット/月）、なければ keyless（無料・レート制限あり）。
+      # dsh の plugin コマンドは workspace root への追加を拒否するため、プロファイルで直接 pnpm を使う。
+      - name: Install Tavily search provider (dsh)
+        if: ${{ env.skip != 'true' }}
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: |
+          PROFILE_DIR="${HOME}/.dsh/profiles/headless"
+          if [ ! -f "${PROFILE_DIR}/package.json" ]; then
+            DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" dsh --profile headless --dump-config > /dev/null
+          fi
+          (cd "${PROFILE_DIR}" && pnpm add -w dsh-web-search-tavily)
+          # bundle として登録して Tavily プロバイダを有効化する（登録は冪等）。
+          node -e '
+            const fs = require("node:fs");
+            const p = process.argv[1];
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.dsh ??= {}; j.dsh.profile ??= {}; j.dsh.profile.bundles ??= [];
+            if (!j.dsh.profile.bundles.includes("dsh-web-search-tavily")) j.dsh.profile.bundles.push("dsh-web-search-tavily");
+            fs.writeFileSync(p, JSON.stringify(j, null, 2));
+          ' "${PROFILE_DIR}/package.json"
+          if [ -n "${TAVILY_API_KEY}" ]; then
+            echo "::notice::TAVILY_API_KEY を設定済み（キー付きモード）。"
+          else
+            echo "::notice::TAVILY_API_KEY 未設定のため keyless モードで検索します。"
+          fi
+
       # 生成を高速化するため thinking（reasoning）を無効化した overlay を適用する。
       - name: Configure dsh (disable thinking)
         if: ${{ env.skip != 'true' }}
@@ -115,7 +143,7 @@ jobs:
           EOF
           cat .dsh-config/no-thinking.yml
 
-      # 不要ツール（jobs / skill / goal / subagent / workflow）と web_search を無効化した overlay。
+      # 不要ツール（jobs / skill / goal / subagent / workflow）を無効化し、検索を Tavily にする overlay。
       - name: Configure dsh (disable unused tools & web search)
         if: ${{ env.skip != 'true' }}
         run: |
@@ -151,18 +179,17 @@ jobs:
           - id: tool-workflow
             name: '@deepseek-ai/dsh-tool-workflow'
             disabled: true
+          # 検索は Tavily（keyless は無料 / API キーがあれば月1,000クレジット無料枠）を使う。
           - id: web
             name: '@deepseek-ai/dsh-web'
             config:
-              searchProvider: deepseek-official
+              searchProvider: tavily
               fetchProvider: http
-          # 検索エンジン（web_search）はオフ、web_fetch のみ残す。
           - id: tool-web
             name: '@deepseek-ai/dsh-tool-web'
             config:
-              search: false
+              search: true
               fetch: true
-              searchTimeoutMs: 60000
           # メモリコンパクション（会話の自動圧縮）。推論トークンを抑えるため早めに圧縮する。
           - id: compaction-basic
             name: '@deepseek-ai/dsh-compaction-basic'
@@ -291,6 +318,34 @@ jobs:
           dsh --version
           echo "DeepSeek Harness (dsh) installed successfully."
 
+      # web_search を Tavily 経由にする検索プロバイダを導入する。
+      # TAVILY_API_KEY があればキー付き（無料1,000クレジット/月）、なければ keyless（無料・レート制限あり）。
+      # dsh の plugin コマンドは workspace root への追加を拒否するため、プロファイルで直接 pnpm を使う。
+      - name: Install Tavily search provider (dsh)
+        if: ${{ env.skip != 'true' }}
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: |
+          PROFILE_DIR="${HOME}/.dsh/profiles/headless"
+          if [ ! -f "${PROFILE_DIR}/package.json" ]; then
+            DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" dsh --profile headless --dump-config > /dev/null
+          fi
+          (cd "${PROFILE_DIR}" && pnpm add -w dsh-web-search-tavily)
+          # bundle として登録して Tavily プロバイダを有効化する（登録は冪等）。
+          node -e '
+            const fs = require("node:fs");
+            const p = process.argv[1];
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.dsh ??= {}; j.dsh.profile ??= {}; j.dsh.profile.bundles ??= [];
+            if (!j.dsh.profile.bundles.includes("dsh-web-search-tavily")) j.dsh.profile.bundles.push("dsh-web-search-tavily");
+            fs.writeFileSync(p, JSON.stringify(j, null, 2));
+          ' "${PROFILE_DIR}/package.json"
+          if [ -n "${TAVILY_API_KEY}" ]; then
+            echo "::notice::TAVILY_API_KEY を設定済み（キー付きモード）。"
+          else
+            echo "::notice::TAVILY_API_KEY 未設定のため keyless モードで検索します。"
+          fi
+
       # 生成を高速化するため thinking（reasoning）を無効化した overlay を適用する。
       - name: Configure dsh (disable thinking)
         if: ${{ env.skip != 'true' }}
@@ -307,7 +362,7 @@ jobs:
           EOF
           cat .dsh-config/no-thinking.yml
 
-      # 不要ツール（jobs / skill / goal / subagent / workflow）と web_search を無効化した overlay。
+      # 不要ツール（jobs / skill / goal / subagent / workflow）を無効化し、検索を Tavily にする overlay。
       - name: Configure dsh (disable unused tools & web search)
         if: ${{ env.skip != 'true' }}
         run: |
@@ -343,18 +398,17 @@ jobs:
           - id: tool-workflow
             name: '@deepseek-ai/dsh-tool-workflow'
             disabled: true
+          # 検索は Tavily（keyless は無料 / API キーがあれば月1,000クレジット無料枠）を使う。
           - id: web
             name: '@deepseek-ai/dsh-web'
             config:
-              searchProvider: deepseek-official
+              searchProvider: tavily
               fetchProvider: http
-          # 検索エンジン（web_search）はオフ、web_fetch のみ残す。
           - id: tool-web
             name: '@deepseek-ai/dsh-tool-web'
             config:
-              search: false
+              search: true
               fetch: true
-              searchTimeoutMs: 60000
           # メモリコンパクション（会話の自動圧縮）。推論トークンを抑えるため早めに圧縮する。
           - id: compaction-basic
             name: '@deepseek-ai/dsh-compaction-basic'
@@ -460,6 +514,34 @@ jobs:
           dsh --version
           echo "DeepSeek Harness (dsh) installed successfully."
 
+      # web_search を Tavily 経由にする検索プロバイダを導入する。
+      # TAVILY_API_KEY があればキー付き（無料1,000クレジット/月）、なければ keyless（無料・レート制限あり）。
+      # dsh の plugin コマンドは workspace root への追加を拒否するため、プロファイルで直接 pnpm を使う。
+      - name: Install Tavily search provider (dsh)
+        if: ${{ env.skip != 'true' }}
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: |
+          PROFILE_DIR="${HOME}/.dsh/profiles/headless"
+          if [ ! -f "${PROFILE_DIR}/package.json" ]; then
+            DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" dsh --profile headless --dump-config > /dev/null
+          fi
+          (cd "${PROFILE_DIR}" && pnpm add -w dsh-web-search-tavily)
+          # bundle として登録して Tavily プロバイダを有効化する（登録は冪等）。
+          node -e '
+            const fs = require("node:fs");
+            const p = process.argv[1];
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.dsh ??= {}; j.dsh.profile ??= {}; j.dsh.profile.bundles ??= [];
+            if (!j.dsh.profile.bundles.includes("dsh-web-search-tavily")) j.dsh.profile.bundles.push("dsh-web-search-tavily");
+            fs.writeFileSync(p, JSON.stringify(j, null, 2));
+          ' "${PROFILE_DIR}/package.json"
+          if [ -n "${TAVILY_API_KEY}" ]; then
+            echo "::notice::TAVILY_API_KEY を設定済み（キー付きモード）。"
+          else
+            echo "::notice::TAVILY_API_KEY 未設定のため keyless モードで検索します。"
+          fi
+
       # 生成を高速化するため thinking（reasoning）を無効化した overlay を適用する。
       - name: Configure dsh (disable thinking)
         if: ${{ env.skip != 'true' }}
@@ -476,7 +558,7 @@ jobs:
           EOF
           cat .dsh-config/no-thinking.yml
 
-      # 不要ツール（jobs / skill / goal / subagent / workflow）と web_search を無効化した overlay。
+      # 不要ツール（jobs / skill / goal / subagent / workflow）を無効化し、検索を Tavily にする overlay。
       - name: Configure dsh (disable unused tools & web search)
         if: ${{ env.skip != 'true' }}
         run: |
@@ -512,18 +594,17 @@ jobs:
           - id: tool-workflow
             name: '@deepseek-ai/dsh-tool-workflow'
             disabled: true
+          # 検索は Tavily（keyless は無料 / API キーがあれば月1,000クレジット無料枠）を使う。
           - id: web
             name: '@deepseek-ai/dsh-web'
             config:
-              searchProvider: deepseek-official
+              searchProvider: tavily
               fetchProvider: http
-          # 検索エンジン（web_search）はオフ、web_fetch のみ残す。
           - id: tool-web
             name: '@deepseek-ai/dsh-tool-web'
             config:
-              search: false
+              search: true
               fetch: true
-              searchTimeoutMs: 60000
           # メモリコンパクション（会話の自動圧縮）。推論トークンを抑えるため早めに圧縮する。
           - id: compaction-basic
             name: '@deepseek-ai/dsh-compaction-basic'
