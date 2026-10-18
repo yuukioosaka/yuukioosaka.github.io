@@ -5,6 +5,7 @@ prompt.md で参照される主要6指標を yfinance から取得し、markdown
 表の行 = ベース指標(当日/前日/前日比率)、「年次ボラティリティ」列 = 各指標の専用VI(実測)。
 専用VI:
     - 日経平均       → 日経VI (Yahoo無しのため ^N225 の1年HVで代用 ※推定)
+    - CME日経平均    → 大阪取引所の日経225先物と連動するため ^N225 の1年HVで代用 ※推定
     - S&P500          → VIX (^VIX)
     - ドル円          → ドル円1年HV (IV無しのため代用 ※推定)
     - 米10年債利回り  → MOVE指数 (^MOVE)
@@ -30,6 +31,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="repla
 #   price_ticker が None なら、investing.com スクレイピングで日本国債10年債利回りを取得する。
 BASES = [
     ("日経平均株価", "株式", "^N225"),
+    ("CME日経平均株価", "株式", "NIY=F"),
     ("S&P500", "株式", "^GSPC"),
     ("ドル円 (USD/JPY)", "為替", "USDJPY=X"),
     ("米10年債利回り", "金利・債券", "^TNX"),
@@ -42,6 +44,7 @@ BASES = [
 #   None(価格) の場合、その指標の年次ボラ列は HV 代用になる。
 VI_MAP = {
     "日経平均株価": ("N225-HV", "日経VI (HV代用)", "^N225", True),
+    "CME日経平均株価": ("N225-HV", "日経VI (HV代用)", "^N225", True),
     "S&P500": ("^VIX", "VIX", "^VIX", True),
     "ドル円 (USD/JPY)": ("JPY-HV", "ドル円1年HV (IV代用)", "USDJPY=X", True),
     "米10年債利回り": ("^MOVE", "MOVE指数", "^MOVE", False),
@@ -162,8 +165,28 @@ def fetch_japan_10y():
         return float("nan"), float("nan"), None
 
 
+def fetch_chart_meta(ticker: str) -> dict:
+    """Yahoo Chart API の meta から直近の価格情報を取得する。
+
+    先物は引け後の期間でヒストリカルの最終足が未確定になりうるため、meta の
+    regularMarketPrice / previousClose を優先して使う。失敗時は空 dict。
+    """
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    }
+    try:
+        res = creq.get(url, headers=headers, params={"range": "1d", "interval": "1d"},
+                       timeout=20, impersonate="chrome")
+        if res.status_code != 200:
+            return {}
+        return res.json()["chart"]["result"][0]["meta"]
+    except Exception:
+        return {}
+
+
 def main():
-    print("🔄 主要6指標と専用VIを yfinance から取得中...\n")
+    print("🔄 主要指標と専用VIを yfinance から取得中...\n")
     rows = []
     jgb_price_str = "-"   # 日本国債10年の100円額面あたり参考価格
 
@@ -180,6 +203,12 @@ def main():
             else:
                 today = series.iloc[-1]
                 prev = series.iloc[-2] if len(series) >= 2 else float("nan")
+            # 先物はヒストリカルの最終足が未確定/遅延しうるので、meta の値を優先
+            if price_ticker == "NIY=F":
+                meta = fetch_chart_meta(price_ticker)
+                if meta.get("regularMarketPrice") is not None:
+                    today = meta["regularMarketPrice"]
+                    prev = meta.get("previousClose", prev)
         else:
             # 日本国債10年債利回りは investing.com からスクレイピング
             today, prev, scraped_pct = fetch_japan_10y()
@@ -248,6 +277,8 @@ def main():
     lines.append("\n### 専用VIの対応と注記")
     vi_note = {
         "日経平均株価": "年次ボラ= 日経VI (Yahooに日経VI無しのため ^N225 の直近1年HV=28.6%で代用 ※推定)。\n  - 正確値は https://www.nikkei.com/marketdata/quote/NK225VI/ を参照",
+        "CME日経平均株価": ("年次ボラ= 日経VI (^N225 の1年HVで代用 ※推定)。"
+            "NIY=F は CME の日経平均先物(円建て、取引時間 America/New_York)。"),
         "S&P500": "年次ボラ= VIX (^VIX)",
         "ドル円 (USD/JPY)": "年次ボラ= ドル円1年HV (通貨IV無しのため代用 ※推定)。正確なIVはCboe/FXブローカー参照",
         "米10年債利回り": "年次ボラ= MOVE指数 (^MOVE)",
