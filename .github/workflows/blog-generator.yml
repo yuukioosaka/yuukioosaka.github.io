@@ -92,6 +92,13 @@ jobs:
         with:
           node-version: '22'
 
+      # dsh のプロファイル/プラグイン管理は pnpm を使う。
+      - name: Setup pnpm
+        if: ${{ env.skip != 'true' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Install DeepSeek Harness (dsh)
         if: ${{ env.skip != 'true' }}
         run: |
@@ -111,16 +118,18 @@ jobs:
           if [ ! -f "${PROFILE_DIR}/package.json" ]; then
             DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" dsh --profile headless --dump-config > /dev/null
           fi
-          (cd "${PROFILE_DIR}" && pnpm add -w dsh-web-search-tavily)
-          # bundle として登録して Tavily プロバイダを有効化する（登録は冪等）。
+          # 依存と bundle 登録を先に書き込み、pnpm にはインストールだけさせる。
           node -e '
             const fs = require("node:fs");
             const p = process.argv[1];
             const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.dependencies ??= {};
+            j.dependencies["dsh-web-search-tavily"] = j.dependencies["dsh-web-search-tavily"] ?? "^0.2.4";
             j.dsh ??= {}; j.dsh.profile ??= {}; j.dsh.profile.bundles ??= [];
             if (!j.dsh.profile.bundles.includes("dsh-web-search-tavily")) j.dsh.profile.bundles.push("dsh-web-search-tavily");
             fs.writeFileSync(p, JSON.stringify(j, null, 2));
           ' "${PROFILE_DIR}/package.json"
+          (cd "${PROFILE_DIR}" && pnpm install)
           if [ -n "${TAVILY_API_KEY}" ]; then
             echo "::notice::TAVILY_API_KEY を設定済み（キー付きモード）。"
           else
@@ -311,6 +320,13 @@ jobs:
         with:
           node-version: '22'
 
+      # dsh のプロファイル/プラグイン管理は pnpm を使う。
+      - name: Setup pnpm
+        if: ${{ env.skip != 'true' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Install DeepSeek Harness (dsh)
         if: ${{ env.skip != 'true' }}
         run: |
@@ -330,16 +346,18 @@ jobs:
           if [ ! -f "${PROFILE_DIR}/package.json" ]; then
             DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" dsh --profile headless --dump-config > /dev/null
           fi
-          (cd "${PROFILE_DIR}" && pnpm add -w dsh-web-search-tavily)
-          # bundle として登録して Tavily プロバイダを有効化する（登録は冪等）。
+          # 依存と bundle 登録を先に書き込み、pnpm にはインストールだけさせる。
           node -e '
             const fs = require("node:fs");
             const p = process.argv[1];
             const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.dependencies ??= {};
+            j.dependencies["dsh-web-search-tavily"] = j.dependencies["dsh-web-search-tavily"] ?? "^0.2.4";
             j.dsh ??= {}; j.dsh.profile ??= {}; j.dsh.profile.bundles ??= [];
             if (!j.dsh.profile.bundles.includes("dsh-web-search-tavily")) j.dsh.profile.bundles.push("dsh-web-search-tavily");
             fs.writeFileSync(p, JSON.stringify(j, null, 2));
           ' "${PROFILE_DIR}/package.json"
+          (cd "${PROFILE_DIR}" && pnpm install)
           if [ -n "${TAVILY_API_KEY}" ]; then
             echo "::notice::TAVILY_API_KEY を設定済み（キー付きモード）。"
           else
@@ -507,6 +525,13 @@ jobs:
         with:
           node-version: '22'
 
+      # dsh のプロファイル/プラグイン管理は pnpm を使う。
+      - name: Setup pnpm
+        if: ${{ env.skip != 'true' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Install DeepSeek Harness (dsh)
         if: ${{ env.skip != 'true' }}
         run: |
@@ -526,16 +551,18 @@ jobs:
           if [ ! -f "${PROFILE_DIR}/package.json" ]; then
             DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" dsh --profile headless --dump-config > /dev/null
           fi
-          (cd "${PROFILE_DIR}" && pnpm add -w dsh-web-search-tavily)
-          # bundle として登録して Tavily プロバイダを有効化する（登録は冪等）。
+          # 依存と bundle 登録を先に書き込み、pnpm にはインストールだけさせる。
           node -e '
             const fs = require("node:fs");
             const p = process.argv[1];
             const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.dependencies ??= {};
+            j.dependencies["dsh-web-search-tavily"] = j.dependencies["dsh-web-search-tavily"] ?? "^0.2.4";
             j.dsh ??= {}; j.dsh.profile ??= {}; j.dsh.profile.bundles ??= [];
             if (!j.dsh.profile.bundles.includes("dsh-web-search-tavily")) j.dsh.profile.bundles.push("dsh-web-search-tavily");
             fs.writeFileSync(p, JSON.stringify(j, null, 2));
           ' "${PROFILE_DIR}/package.json"
+          (cd "${PROFILE_DIR}" && pnpm install)
           if [ -n "${TAVILY_API_KEY}" ]; then
             echo "::notice::TAVILY_API_KEY を設定済み（キー付きモード）。"
           else
