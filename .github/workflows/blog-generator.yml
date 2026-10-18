@@ -99,6 +99,84 @@ jobs:
           dsh --version
           echo "DeepSeek Harness (dsh) installed successfully."
 
+      # 生成を高速化するため thinking（reasoning）を無効化した overlay を適用する。
+      - name: Configure dsh (disable thinking)
+        if: ${{ env.skip != 'true' }}
+        run: |
+          mkdir -p .dsh-config
+          cat > .dsh-config/no-thinking.yml <<'EOF'
+          # dsh の patch は行の config をまるごと置き換えるため、必須の name と
+          # apiKeyEnv も明示する（apiKeyEnv の既定値と同じ値）。
+          - id: llm-deepseek
+            name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+            config:
+              apiKeyEnv: DEEPSEEK_API_KEY
+              thinking: disabled
+          EOF
+          cat .dsh-config/no-thinking.yml
+
+      # 不要ツール（jobs / skill / goal / subagent / workflow）と web_search を無効化した overlay。
+      - name: Configure dsh (disable unused tools & web search)
+        if: ${{ env.skip != 'true' }}
+        run: |
+          cat > .dsh-config/minimal-tools.yml <<'EOF'
+          # 記事生成に不要なツール行を無効化する。
+          # dsh の patch は行の config をまるごと置き換えるため、必須キーも再掲する。
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+            disabled: true
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+            disabled: true
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+            disabled: true
+          - id: tool-subagent
+            name: '@deepseek-ai/dsh-tool-subagent'
+            disabled: true
+            config:
+              provider: spawn
+              toolName: subagent
+              backgroundMode: continuable
+          - id: tool-subagent-fork
+            name: '@deepseek-ai/dsh-tool-subagent'
+            disabled: true
+            config:
+              provider: fork
+              toolName: subagent_fork
+              backgroundMode: one-shot
+          - id: tool-subagent-list-agents
+            name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+            disabled: true
+          - id: tool-workflow
+            name: '@deepseek-ai/dsh-tool-workflow'
+            disabled: true
+          - id: web
+            name: '@deepseek-ai/dsh-web'
+            config:
+              searchProvider: deepseek-official
+              fetchProvider: http
+          # 検索エンジン（web_search）はオフ、web_fetch のみ残す。
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              search: false
+              fetch: true
+              searchTimeoutMs: 60000
+          # メモリコンパクション（会話の自動圧縮）。推論トークンを抑えるため早めに圧縮する。
+          - id: compaction-basic
+            name: '@deepseek-ai/dsh-compaction-basic'
+            config:
+              auto: true
+              thresholdRatio: 0.25
+              headroomTokens: 65536
+              retainRatio: 0.04
+              compactionRetries: 1
+              maxOverflowRetries: 1
+              modelPolicies: []
+          EOF
+          cat .dsh-config/minimal-tools.yml
+
       - name: Setup Python & dependencies
         if: ${{ env.skip != 'true' }}
         run: |
@@ -131,7 +209,10 @@ jobs:
           DSH_PERMISSION_MODE: danger-full-access
         run: |
           cp generated-prompt.md run-prompt.md
-          timeout 900 dsh --profile headless - < run-prompt.md 2>agent-error.log || {
+          timeout 1800 dsh --profile headless \
+            --patch .dsh-config/no-thinking.yml \
+            --patch .dsh-config/minimal-tools.yml \
+            - < run-prompt.md 2>agent-error.log || {
               echo "Error: dsh agent 実行に失敗しました。" >&2
               cat agent-error.log >&2
               rm -f generated-prompt.md run-prompt.md agent-error.log
@@ -210,6 +291,84 @@ jobs:
           dsh --version
           echo "DeepSeek Harness (dsh) installed successfully."
 
+      # 生成を高速化するため thinking（reasoning）を無効化した overlay を適用する。
+      - name: Configure dsh (disable thinking)
+        if: ${{ env.skip != 'true' }}
+        run: |
+          mkdir -p .dsh-config
+          cat > .dsh-config/no-thinking.yml <<'EOF'
+          # dsh の patch は行の config をまるごと置き換えるため、必須の name と
+          # apiKeyEnv も明示する（apiKeyEnv の既定値と同じ値）。
+          - id: llm-deepseek
+            name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+            config:
+              apiKeyEnv: DEEPSEEK_API_KEY
+              thinking: disabled
+          EOF
+          cat .dsh-config/no-thinking.yml
+
+      # 不要ツール（jobs / skill / goal / subagent / workflow）と web_search を無効化した overlay。
+      - name: Configure dsh (disable unused tools & web search)
+        if: ${{ env.skip != 'true' }}
+        run: |
+          cat > .dsh-config/minimal-tools.yml <<'EOF'
+          # 記事生成に不要なツール行を無効化する。
+          # dsh の patch は行の config をまるごと置き換えるため、必須キーも再掲する。
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+            disabled: true
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+            disabled: true
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+            disabled: true
+          - id: tool-subagent
+            name: '@deepseek-ai/dsh-tool-subagent'
+            disabled: true
+            config:
+              provider: spawn
+              toolName: subagent
+              backgroundMode: continuable
+          - id: tool-subagent-fork
+            name: '@deepseek-ai/dsh-tool-subagent'
+            disabled: true
+            config:
+              provider: fork
+              toolName: subagent_fork
+              backgroundMode: one-shot
+          - id: tool-subagent-list-agents
+            name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+            disabled: true
+          - id: tool-workflow
+            name: '@deepseek-ai/dsh-tool-workflow'
+            disabled: true
+          - id: web
+            name: '@deepseek-ai/dsh-web'
+            config:
+              searchProvider: deepseek-official
+              fetchProvider: http
+          # 検索エンジン（web_search）はオフ、web_fetch のみ残す。
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              search: false
+              fetch: true
+              searchTimeoutMs: 60000
+          # メモリコンパクション（会話の自動圧縮）。推論トークンを抑えるため早めに圧縮する。
+          - id: compaction-basic
+            name: '@deepseek-ai/dsh-compaction-basic'
+            config:
+              auto: true
+              thresholdRatio: 0.25
+              headroomTokens: 65536
+              retainRatio: 0.04
+              compactionRetries: 1
+              maxOverflowRetries: 1
+              modelPolicies: []
+          EOF
+          cat .dsh-config/minimal-tools.yml
+
       - name: Run dsh Agent
         if: ${{ env.skip != 'true' }}
         env:
@@ -219,7 +378,10 @@ jobs:
         run: |
           mkdir -p _posts
           sed "s/yyyy-MM-dd/${TODAY}/g" prompt-weekly.md > generated-prompt.md
-          timeout 900 dsh --profile headless - < generated-prompt.md 2>agent-error.log || {
+          timeout 1800 dsh --profile headless \
+            --patch .dsh-config/no-thinking.yml \
+            --patch .dsh-config/minimal-tools.yml \
+            - < generated-prompt.md 2>agent-error.log || {
               echo "Error: dsh weekly agent 実行に失敗しました。" >&2
               cat agent-error.log >&2
               rm -f generated-prompt.md agent-error.log
@@ -298,6 +460,84 @@ jobs:
           dsh --version
           echo "DeepSeek Harness (dsh) installed successfully."
 
+      # 生成を高速化するため thinking（reasoning）を無効化した overlay を適用する。
+      - name: Configure dsh (disable thinking)
+        if: ${{ env.skip != 'true' }}
+        run: |
+          mkdir -p .dsh-config
+          cat > .dsh-config/no-thinking.yml <<'EOF'
+          # dsh の patch は行の config をまるごと置き換えるため、必須の name と
+          # apiKeyEnv も明示する（apiKeyEnv の既定値と同じ値）。
+          - id: llm-deepseek
+            name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+            config:
+              apiKeyEnv: DEEPSEEK_API_KEY
+              thinking: disabled
+          EOF
+          cat .dsh-config/no-thinking.yml
+
+      # 不要ツール（jobs / skill / goal / subagent / workflow）と web_search を無効化した overlay。
+      - name: Configure dsh (disable unused tools & web search)
+        if: ${{ env.skip != 'true' }}
+        run: |
+          cat > .dsh-config/minimal-tools.yml <<'EOF'
+          # 記事生成に不要なツール行を無効化する。
+          # dsh の patch は行の config をまるごと置き換えるため、必須キーも再掲する。
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+            disabled: true
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+            disabled: true
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+            disabled: true
+          - id: tool-subagent
+            name: '@deepseek-ai/dsh-tool-subagent'
+            disabled: true
+            config:
+              provider: spawn
+              toolName: subagent
+              backgroundMode: continuable
+          - id: tool-subagent-fork
+            name: '@deepseek-ai/dsh-tool-subagent'
+            disabled: true
+            config:
+              provider: fork
+              toolName: subagent_fork
+              backgroundMode: one-shot
+          - id: tool-subagent-list-agents
+            name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+            disabled: true
+          - id: tool-workflow
+            name: '@deepseek-ai/dsh-tool-workflow'
+            disabled: true
+          - id: web
+            name: '@deepseek-ai/dsh-web'
+            config:
+              searchProvider: deepseek-official
+              fetchProvider: http
+          # 検索エンジン（web_search）はオフ、web_fetch のみ残す。
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              search: false
+              fetch: true
+              searchTimeoutMs: 60000
+          # メモリコンパクション（会話の自動圧縮）。推論トークンを抑えるため早めに圧縮する。
+          - id: compaction-basic
+            name: '@deepseek-ai/dsh-compaction-basic'
+            config:
+              auto: true
+              thresholdRatio: 0.25
+              headroomTokens: 65536
+              retainRatio: 0.04
+              compactionRetries: 1
+              maxOverflowRetries: 1
+              modelPolicies: []
+          EOF
+          cat .dsh-config/minimal-tools.yml
+
       - name: Run dsh Agent
         if: ${{ env.skip != 'true' }}
         env:
@@ -307,7 +547,10 @@ jobs:
         run: |
           mkdir -p _posts
           sed "s/yyyy-MM-dd/${TODAY}/g" prompt-monthly.md > generated-prompt.md
-          timeout 1200 dsh --profile headless - < generated-prompt.md 2>agent-error.log || {
+          timeout 1800 dsh --profile headless \
+            --patch .dsh-config/no-thinking.yml \
+            --patch .dsh-config/minimal-tools.yml \
+            - < generated-prompt.md 2>agent-error.log || {
               echo "Error: dsh monthly agent 実行に失敗しました。" >&2
               cat agent-error.log >&2
               rm -f generated-prompt.md agent-error.log
