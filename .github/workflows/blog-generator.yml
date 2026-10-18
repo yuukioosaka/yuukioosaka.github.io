@@ -51,45 +51,12 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install OpenClaw
+      - name: Install DeepSeek Harness (dsh)
         if: ${{ env.skip != 'true' }}
         run: |
-          npm install -g openclaw@latest
-          echo "OpenClaw installed successfully."
-          openclaw plugins install duckduckgo
-
-      - name: Configure OpenClaw
-        if: ${{ env.skip != 'true' }}
-        run: |
-          mkdir -p ~/.openclaw
-          cat << 'EOF' > ~/.openclaw/openclaw.json
-          {
-            "models": {
-              "mode": "merge",
-              "providers": {
-                "deepseek": {
-                  "baseUrl": "https://api.deepseek.com",
-                  "apiKey": {
-                    "source": "env",
-                    "provider": "default",
-                    "id": "DEEPSEEK_API_KEY"
-                  },
-                  "auth": "api-key",
-                  "api": "openai-completions"
-                }
-              }
-            },
-            "tools": {
-              "web": {
-                "search": {
-                  "enabled": true,
-                  "provider": "duckduckgo"
-                }
-              }
-            }
-          }
-          EOF
-          echo "OpenClaw 設定を作成しました。"
+          npm install -g @deepseek-ai/dsh@latest
+          dsh --version
+          echo "DeepSeek Harness (dsh) installed successfully."
 
       - name: Setup Python & dependencies
         if: ${{ env.skip != 'true' }}
@@ -115,18 +82,16 @@ jobs:
           cat market_summary.md >> generated-prompt.md
           echo "generated-prompt.md を作成しました（指標データ内包）。"
 
-      - name: Run OpenClaw Agent
+      - name: Run dsh Agent
         if: ${{ env.skip != 'true' }}
         env:
           TODAY: ${{ env.TODAY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DSH_PERMISSION_MODE: danger-full-access
         run: |
           cp generated-prompt.md run-prompt.md
-          openclaw agent --local --session-key "news-${TODAY}" \
-            --message-file run-prompt.md \
-            --model deepseek/deepseek-v4-flash \
-            --timeout 900 2>agent-error.log || {
-              echo "Error: OpenClaw agent 実行に失敗しました。" >&2
+          timeout 900 dsh --profile headless - < run-prompt.md 2>agent-error.log || {
+              echo "Error: dsh agent 実行に失敗しました。" >&2
               cat agent-error.log >&2
               rm -f generated-prompt.md run-prompt.md agent-error.log
               exit 1
@@ -141,7 +106,7 @@ jobs:
           # エージェントが作成/再作成したファイルをすべてステージしてコミット。
           # 既存ファイルの再生成・複数ファイル生成の両方に対応。
           git add -A
-          git commit -m "docs: auto-generate news digest (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed or no change)."
+          git commit -m "docs: auto-generate news digest (${TODAY}) by dsh" || echo "Nothing to commit (already committed or no change)."
           git push || echo "Nothing to push."
 
   # ============ 週次ブログ（毎週土曜 JST = UTC 金曜 22:00） ============
@@ -177,59 +142,24 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install OpenClaw
+      - name: Install DeepSeek Harness (dsh)
         if: ${{ env.skip != 'true' }}
         run: |
-          npm install -g openclaw@latest
-          echo "OpenClaw installed successfully."
-          openclaw plugins install duckduckgo
+          npm install -g @deepseek-ai/dsh@latest
+          dsh --version
+          echo "DeepSeek Harness (dsh) installed successfully."
 
-      - name: Configure OpenClaw
-        if: ${{ env.skip != 'true' }}
-        run: |
-          mkdir -p ~/.openclaw
-          cat << 'EOF' > ~/.openclaw/openclaw.json
-          {
-            "models": {
-              "mode": "merge",
-              "providers": {
-                "deepseek": {
-                  "baseUrl": "https://api.deepseek.com",
-                  "apiKey": {
-                    "source": "env",
-                    "provider": "default",
-                    "id": "DEEPSEEK_API_KEY"
-                  },
-                  "auth": "api-key",
-                  "api": "openai-completions"
-                }
-              }
-            },
-            "tools": {
-              "web": {
-                "search": {
-                  "enabled": true,
-                  "provider": "duckduckgo"
-                }
-              }
-            }
-          }
-          EOF
-          echo "OpenClaw 設定を作成しました。"
-
-      - name: Run OpenClaw Agent
+      - name: Run dsh Agent
         if: ${{ env.skip != 'true' }}
         env:
           TODAY: ${{ env.TODAY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DSH_PERMISSION_MODE: danger-full-access
         run: |
           mkdir -p _posts
           sed "s/yyyy-MM-dd/${TODAY}/g" prompt-weekly.md > generated-prompt.md
-          openclaw agent --local --session-key "weekly-${TODAY}" \
-            --message-file generated-prompt.md \
-            --model deepseek/deepseek-v4-flash \
-            --timeout 900 2>agent-error.log || {
-              echo "Error: OpenClaw weekly agent 実行に失敗しました。" >&2
+          timeout 900 dsh --profile headless - < generated-prompt.md 2>agent-error.log || {
+              echo "Error: dsh weekly agent 実行に失敗しました。" >&2
               cat agent-error.log >&2
               rm -f generated-prompt.md agent-error.log
               exit 1
@@ -243,7 +173,7 @@ jobs:
           git config --local user.name "GitHub Action Bot"
           # エージェントが作成/再作成したファイルをすべてステージしてコミット。
           git add -A
-          git commit -m "docs: auto-generate weekly review (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed or no change)."
+          git commit -m "docs: auto-generate weekly review (${TODAY}) by dsh" || echo "Nothing to commit (already committed or no change)."
           git push || echo "Nothing to push."
 
   # ============ 月次ブログ（毎月1日 JST） ============
@@ -280,59 +210,24 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install OpenClaw
+      - name: Install DeepSeek Harness (dsh)
         if: ${{ env.skip != 'true' }}
         run: |
-          npm install -g openclaw@latest
-          echo "OpenClaw installed successfully."
-          openclaw plugins install duckduckgo
+          npm install -g @deepseek-ai/dsh@latest
+          dsh --version
+          echo "DeepSeek Harness (dsh) installed successfully."
 
-      - name: Configure OpenClaw
-        if: ${{ env.skip != 'true' }}
-        run: |
-          mkdir -p ~/.openclaw
-          cat << 'EOF' > ~/.openclaw/openclaw.json
-          {
-            "models": {
-              "mode": "merge",
-              "providers": {
-                "deepseek": {
-                  "baseUrl": "https://api.deepseek.com",
-                  "apiKey": {
-                    "source": "env",
-                    "provider": "default",
-                    "id": "DEEPSEEK_API_KEY"
-                  },
-                  "auth": "api-key",
-                  "api": "openai-completions"
-                }
-              }
-            },
-            "tools": {
-              "web": {
-                "search": {
-                  "enabled": true,
-                  "provider": "duckduckgo"
-                }
-              }
-            }
-          }
-          EOF
-          echo "OpenClaw 設定を作成しました。"
-
-      - name: Run OpenClaw Agent
+      - name: Run dsh Agent
         if: ${{ env.skip != 'true' }}
         env:
           TODAY: ${{ env.TODAY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DSH_PERMISSION_MODE: danger-full-access
         run: |
           mkdir -p _posts
           sed "s/yyyy-MM-dd/${TODAY}/g" prompt-monthly.md > generated-prompt.md
-          openclaw agent --local --session-key "monthly-${TODAY}" \
-            --message-file generated-prompt.md \
-            --model deepseek/deepseek-v4-flash \
-            --timeout 1200 2>agent-error.log || {
-              echo "Error: OpenClaw monthly agent 実行に失敗しました。" >&2
+          timeout 1200 dsh --profile headless - < generated-prompt.md 2>agent-error.log || {
+              echo "Error: dsh monthly agent 実行に失敗しました。" >&2
               cat agent-error.log >&2
               rm -f generated-prompt.md agent-error.log
               exit 1
@@ -346,5 +241,5 @@ jobs:
           git config --local user.name "GitHub Action Bot"
           # エージェントが作成/再作成したファイルをすべてステージしてコミット。
           git add -A
-          git commit -m "docs: auto-generate monthly review (${TODAY}) by OpenClaw" || echo "Nothing to commit (already committed or no change)."
+          git commit -m "docs: auto-generate monthly review (${TODAY}) by dsh" || echo "Nothing to commit (already committed or no change)."
           git push || echo "Nothing to push."
